@@ -1,7 +1,7 @@
 "use client"
 
+import { PageHeader } from "@/app/(cloud9)/_components/page-header"
 import { StatusBlock } from "@/app/(cloud9)/_components/status-block"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { fetchClient } from "@/lib/fetch"
 import { useQuery } from "@tanstack/react-query"
 
@@ -14,13 +14,44 @@ type ObserveResponse = {
     active_agents: number
     readiness: { checks: Record<string, { status: string }> }
   }>
-  sessions: Section<{ count: number; totalInputTokens: number; totalOutputTokens: number }>
+  sessions: Section<{
+    count: number
+    totalInputTokens: number
+    totalOutputTokens: number
+    recent: { id: string; model: string; last_active: number }[]
+  }>
   litellmSpend: Section<Record<string, unknown>>
   recentFailures: {
     hermes: { id: string; title: string; end_reason: string | null }[]
     litellm: Record<string, unknown>[]
     litellmError: string | null
   }
+}
+
+// date-fns isn't installed; Intl.RelativeTimeFormat covers "12 min ago" fine. Hermes timestamps
+// are epoch seconds in this codebase's other age fields, so scale up if the value looks too small
+// to be milliseconds.
+function relativeTime(epoch: number) {
+  const ms = epoch < 1e12 ? epoch * 1000 : epoch
+  const diffMin = Math.round((ms - Date.now()) / 60000)
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+  if (Math.abs(diffMin) < 60) return rtf.format(diffMin, "minute")
+  const diffHr = Math.round(diffMin / 60)
+  if (Math.abs(diffHr) < 24) return rtf.format(diffHr, "hour")
+  return rtf.format(Math.round(diffHr / 24), "day")
+}
+
+function Rows({ items }: { items: [string, React.ReactNode][] }) {
+  return (
+    <div className="divide-y divide-border rounded-xl border border-border">
+      {items.map(([label, value]) => (
+        <div key={label} className="flex items-center justify-between gap-4 px-4 py-2 text-sm">
+          <span className="text-muted-foreground">{label}</span>
+          <span>{value}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function ObservePage() {
@@ -35,92 +66,68 @@ export default function ObservePage() {
   })
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Observe</h1>
+    <div>
+      <PageHeader title="Observe" />
 
       <StatusBlock isLoading={isLoading} error={error?.message}>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">VM / agent status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StatusBlock isLoading={false} error={data?.health.ok ? undefined : data?.health.error}>
-                <ul className="space-y-1 text-sm">
-                  <li>Version: {data?.health.data?.version}</li>
-                  <li>Gateway: {data?.health.data?.gateway_state}</li>
-                  <li>Active agents: {data?.health.data?.active_agents}</li>
-                  <li>
-                    Checks:{" "}
-                    {data?.health.data &&
+        <div className="space-y-8">
+          <section>
+            <h2 className="text-muted-foreground mb-2 text-[13px]">Agent</h2>
+            <StatusBlock isLoading={false} error={data?.health.ok ? undefined : data?.health.error}>
+              <Rows
+                items={[
+                  ["Version", data?.health.data?.version],
+                  ["Gateway", data?.health.data?.gateway_state],
+                  ["Active agents", data?.health.data?.active_agents],
+                  [
+                    "Checks",
+                    data?.health.data &&
                       Object.entries(data.health.data.readiness.checks)
                         .map(([name, c]) => `${name}=${c.status}`)
-                        .join(", ")}
-                  </li>
-                </ul>
-              </StatusBlock>
-            </CardContent>
-          </Card>
+                        .join(", "),
+                  ],
+                ]}
+              />
+            </StatusBlock>
+          </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Hermes sessions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StatusBlock isLoading={false} error={data?.sessions.ok ? undefined : data?.sessions.error}>
-                <ul className="space-y-1 text-sm">
-                  <li>Sessions: {data?.sessions.data?.count}</li>
-                  <li>Input tokens: {data?.sessions.data?.totalInputTokens.toLocaleString()}</li>
-                  <li>Output tokens: {data?.sessions.data?.totalOutputTokens.toLocaleString()}</li>
-                </ul>
-              </StatusBlock>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">LiteLLM spend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StatusBlock
-                isLoading={false}
-                error={data?.litellmSpend.ok ? undefined : data?.litellmSpend.error || "LiteLLM unreachable"}
-              >
-                <pre className="bg-muted overflow-auto rounded-md p-2 text-xs">
-                  {JSON.stringify(data?.litellmSpend.data, null, 2)}
-                </pre>
-              </StatusBlock>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recent failures</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p className="text-muted-foreground text-xs">Hermes sessions with a non-normal end reason:</p>
-              <StatusBlock isLoading={false} isEmpty={data?.recentFailures.hermes.length === 0} emptyLabel="None.">
-                <ul className="space-y-1">
-                  {data?.recentFailures.hermes.map((s) => (
-                    <li key={s.id}>
-                      {s.title} — {s.end_reason}
-                    </li>
+          <section>
+            <h2 className="text-muted-foreground mb-2 text-[13px]">Sessions</h2>
+            <StatusBlock isLoading={false} error={data?.sessions.ok ? undefined : data?.sessions.error}>
+              <div className="text-muted-foreground mb-2 text-[13px]">
+                {data?.sessions.data?.count} sessions ·{" "}
+                {data?.sessions.data?.totalInputTokens.toLocaleString()} in ·{" "}
+                {data?.sessions.data?.totalOutputTokens.toLocaleString()} out
+              </div>
+              <StatusBlock isLoading={false} isEmpty={data?.sessions.data?.recent.length === 0} emptyLabel="No sessions.">
+                <div className="divide-y divide-border rounded-xl border border-border">
+                  {data?.sessions.data?.recent.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between gap-4 px-4 py-2 text-sm">
+                      <span className="truncate font-mono text-[13px]">{s.id}</span>
+                      <span className="text-muted-foreground text-[13px]">{s.model}</span>
+                      <span className="text-muted-foreground text-[13px]">{relativeTime(s.last_active)}</span>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </StatusBlock>
-              <p className="text-muted-foreground pt-2 text-xs">LiteLLM 4xx/5xx log entries:</p>
-              <StatusBlock
-                isLoading={false}
-                error={data?.recentFailures.litellmError ?? undefined}
-                isEmpty={data?.recentFailures.litellm.length === 0}
-                emptyLabel="None."
-              >
-                <pre className="bg-muted overflow-auto rounded-md p-2 text-xs">
-                  {JSON.stringify(data?.recentFailures.litellm, null, 2)}
-                </pre>
-              </StatusBlock>
-            </CardContent>
-          </Card>
+            </StatusBlock>
+          </section>
+
+          <section>
+            <h2 className="text-muted-foreground mb-2 text-[13px]">LiteLLM</h2>
+            {data?.litellmSpend.ok ? (
+              <pre className="bg-muted overflow-auto rounded-xl p-3 text-xs">
+                {JSON.stringify(data.litellmSpend.data, null, 2)}
+              </pre>
+            ) : (
+              <p className="text-muted-foreground text-sm">LiteLLM is only reachable from the VM.</p>
+            )}
+            {data?.recentFailures.litellmError == null && data?.recentFailures.litellm.length ? (
+              <pre className="bg-muted mt-2 overflow-auto rounded-xl p-3 text-xs">
+                {JSON.stringify(data.recentFailures.litellm, null, 2)}
+              </pre>
+            ) : null}
+          </section>
         </div>
       </StatusBlock>
     </div>

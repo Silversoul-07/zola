@@ -1,10 +1,10 @@
 "use client"
 
+import { PageHeader } from "@/app/(cloud9)/_components/page-header"
 import { StatusBlock } from "@/app/(cloud9)/_components/status-block"
 import { DialogCreateProject } from "@/app/components/layout/sidebar/dialog-create-project"
 import { DialogDeleteProject } from "@/app/components/layout/sidebar/dialog-delete-project"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { fetchClient } from "@/lib/fetch"
 import { useChats } from "@/lib/chat-store/chats/provider"
@@ -47,57 +47,63 @@ export default function ProjectsPage() {
   const chatCount = (projectId: string) => chats.filter((c) => c.project_id === projectId).length
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Projects</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          A project is a chat grouper with its own system prompt and pinned context that every
-          chat in it inherits.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="Projects"
+        action={
+          <Button className="bg-sky-500 text-white hover:bg-sky-600" onClick={() => setIsCreateOpen(true)}>
+            New project
+          </Button>
+        }
+      />
+      <p className="text-muted-foreground -mt-4 mb-6 text-sm">
+        A project is a chat grouper with its own system prompt and pinned context that every chat
+        in it inherits.
+      </p>
 
-      <Button onClick={() => setIsCreateOpen(true)}>New project</Button>
-
-      <StatusBlock isLoading={isLoading} error={error?.message} isEmpty={projects?.length === 0}>
-        <div className="grid gap-3 sm:grid-cols-2">
+      <StatusBlock
+        isLoading={isLoading}
+        error={error?.message}
+        isEmpty={projects?.length === 0}
+        emptyLabel="No projects yet. Create one to group related chats."
+      >
+        <div className="divide-y divide-border rounded-xl border border-border">
           {projects?.map((project) => (
-            <Card key={project.id}>
-              <CardHeader>
-                {renaming?.id === project.id ? (
-                  <div className="flex gap-2">
-                    <Input
-                      autoFocus
-                      value={renaming.name}
-                      onChange={(e) => setRenaming({ id: project.id, name: e.target.value })}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") renameMutation.mutate(renaming)
-                        if (e.key === "Escape") setRenaming(null)
-                      }}
-                    />
-                    <Button size="sm" onClick={() => renameMutation.mutate(renaming)}>
-                      Save
-                    </Button>
-                  </div>
-                ) : (
-                  <CardTitle>{project.name}</CardTitle>
-                )}
-              </CardHeader>
-              <CardContent className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{chatCount(project.id)} chats</span>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setRenaming({ id: project.id, name: project.name })}
-                  >
-                    Rename
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(project)}>
-                    Delete
+            <div key={project.id} className="flex items-center justify-between gap-4 px-4 py-3">
+              {renaming?.id === project.id ? (
+                <div className="flex flex-1 gap-2">
+                  <Input
+                    autoFocus
+                    value={renaming.name}
+                    onChange={(e) => setRenaming({ id: project.id, name: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") renameMutation.mutate(renaming)
+                      if (e.key === "Escape") setRenaming(null)
+                    }}
+                  />
+                  <Button size="sm" onClick={() => renameMutation.mutate(renaming)}>
+                    Save
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              ) : (
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{project.name}</p>
+                  <p className="text-muted-foreground text-[13px]">{chatCount(project.id)} chats</p>
+                </div>
+              )}
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setRenaming({ id: project.id, name: project.name })}
+                >
+                  Rename
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setDeleteTarget(project)}>
+                  Delete
+                </Button>
+              </div>
+            </div>
           ))}
         </div>
       </StatusBlock>

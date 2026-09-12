@@ -1,12 +1,22 @@
 "use client"
 
+import { PageHeader } from "@/app/(cloud9)/_components/page-header"
 import { StatusBlock } from "@/app/(cloud9)/_components/status-block"
-import { Badge } from "@/components/ui/badge"
+import { StatusDot } from "@/app/(cloud9)/_components/status-dot"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "@/components/ui/toast"
 import { fetchClient } from "@/lib/fetch"
+import { ArrowClockwise, Pause, Play } from "@phosphor-icons/react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 
@@ -21,8 +31,20 @@ type Job = {
   last_status: string | null
 }
 
+// date-fns isn't installed in this app; Intl.RelativeTimeFormat covers "in 12 min" fine.
+function relativeTime(iso: string | null) {
+  if (!iso) return "—"
+  const diffMin = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+  if (Math.abs(diffMin) < 60) return rtf.format(diffMin, "minute")
+  const diffHr = Math.round(diffMin / 60)
+  if (Math.abs(diffHr) < 24) return rtf.format(diffHr, "hour")
+  return rtf.format(Math.round(diffHr / 24), "day")
+}
+
 export default function ScheduledPage() {
   const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ name: "", schedule: "", prompt: "" })
 
   const { data, isLoading, error } = useQuery<{ jobs: Job[] }>({
@@ -67,80 +89,107 @@ export default function ScheduledPage() {
         toast({ title: "Dashboard not connected", description: `Run: ${body.cliCommand}` })
       }
       setForm({ name: "", schedule: "", prompt: "" })
+      setOpen(false)
     },
     onError: (err: Error) => toast({ title: "Failed", description: err.message, status: "error" }),
   })
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Scheduled jobs</h1>
+    <div>
+      <PageHeader
+        title="Scheduled"
+        action={
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-sky-500 text-white hover:bg-sky-600">New job</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>New job</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Name"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                />
+                <Input
+                  placeholder="Schedule (e.g. every 15m, or a cron expression)"
+                  value={form.schedule}
+                  onChange={(e) => setForm((f) => ({ ...f, schedule: e.target.value }))}
+                />
+                <Input
+                  placeholder="Prompt"
+                  value={form.prompt}
+                  onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  className="bg-sky-500 text-white hover:bg-sky-600"
+                  disabled={!form.name || !form.schedule || createMutation.isPending}
+                  onClick={() => createMutation.mutate()}
+                >
+                  Create
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
-      <StatusBlock isLoading={isLoading} error={error?.message} isEmpty={data?.jobs.length === 0}>
-        <div className="space-y-3">
+      <StatusBlock
+        isLoading={isLoading}
+        error={error?.message}
+        isEmpty={data?.jobs.length === 0}
+        emptyLabel="No scheduled jobs yet. Create one to run a prompt on a recurring schedule."
+      >
+        <div className="divide-y divide-border rounded-xl border border-border">
           {data?.jobs.map((job) => (
-            <Card key={job.id}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-base">{job.name}</CardTitle>
-                <Badge variant={job.last_status === "ok" ? "default" : "destructive"}>
-                  {job.last_status ?? job.state}
-                </Badge>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p className="text-muted-foreground">{job.schedule_display}</p>
-                <p className="text-muted-foreground">Next run: {job.next_run_at ?? "—"}</p>
-                <p className="text-muted-foreground">Last run: {job.last_run_at ?? "—"}</p>
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={actionMutation.isPending}
-                    onClick={() => actionMutation.mutate({ id: job.id, action: job.enabled ? "pause" : "resume" })}
-                  >
-                    {job.enabled ? "Pause" : "Resume"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={actionMutation.isPending}
-                    onClick={() => actionMutation.mutate({ id: job.id, action: "run" })}
-                  >
-                    Run now
-                  </Button>
+            <div key={job.id} className="flex items-center justify-between gap-4 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <StatusDot status={job.last_status === "ok" ? "ok" : job.last_status ? "error" : "muted"} />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{job.name}</p>
+                  <p className="text-muted-foreground truncate text-[13px]">
+                    {job.schedule_display} · next {relativeTime(job.next_run_at)}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={actionMutation.isPending}
+                      onClick={() =>
+                        actionMutation.mutate({ id: job.id, action: job.enabled ? "pause" : "resume" })
+                      }
+                    >
+                      {job.enabled ? <Pause /> : <Play />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{job.enabled ? "Pause" : "Resume"}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={actionMutation.isPending}
+                      onClick={() => actionMutation.mutate({ id: job.id, action: "run" })}
+                    >
+                      <ArrowClockwise />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Run now</TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
           ))}
         </div>
       </StatusBlock>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">New job</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Input
-            placeholder="Name"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          />
-          <Input
-            placeholder="Schedule (e.g. every 15m, or a cron expression)"
-            value={form.schedule}
-            onChange={(e) => setForm((f) => ({ ...f, schedule: e.target.value }))}
-          />
-          <Input
-            placeholder="Prompt"
-            value={form.prompt}
-            onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
-          />
-          <Button
-            disabled={!form.name || !form.schedule || createMutation.isPending}
-            onClick={() => createMutation.mutate()}
-          >
-            Create
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   )
 }

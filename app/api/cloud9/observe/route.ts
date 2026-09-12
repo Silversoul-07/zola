@@ -24,6 +24,10 @@ export async function GET() {
             count: sessions.length,
             totalInputTokens: sessions.reduce((n, s) => n + (s.input_tokens || 0), 0),
             totalOutputTokens: sessions.reduce((n, s) => n + (s.output_tokens || 0), 0),
+            recent: [...sessions]
+              .sort((a, b) => b.last_active - a.last_active)
+              .slice(0, 20)
+              .map((s) => ({ id: s.id, model: s.model, last_active: s.last_active })),
           },
         }
       : { ok: false, error: sessionsRes.error },
