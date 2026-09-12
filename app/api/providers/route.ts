@@ -1,23 +1,13 @@
-import { createClient } from "@/lib/supabase/server"
+import { getCurrentUser } from "@/lib/auth"
 import { getEffectiveApiKey, ProviderWithoutOllama } from "@/lib/user-keys"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { provider, userId } = await request.json()
+    const { provider } = await request.json()
 
-    const supabase = await createClient()
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Database not available" },
-        { status: 500 }
-      )
-    }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user || user.id !== userId) {
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -30,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const apiKey = await getEffectiveApiKey(
-      userId,
+      user.id,
       provider as ProviderWithoutOllama
     )
 

@@ -6,7 +6,6 @@ import { FeedbackForm } from "@/components/common/feedback-form"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { Question } from "@phosphor-icons/react"
 import { useState } from "react"
 
@@ -14,10 +13,6 @@ export function FeedbackTrigger() {
   const { user } = useUser()
   const isMobile = useBreakpoint(768)
   const [isOpen, setIsOpen] = useState(false)
-
-  if (!isSupabaseEnabled) {
-    return null
-  }
 
   const handleClose = () => {
     setIsOpen(false)

@@ -1,0 +1,26 @@
+# Self-hosted deployment snippet for the VM. No published port: Caddy (or
+# whatever reverse proxy sits in front) reaches this over the internal
+# network. `docker compose -f deploy/compose.zola.yml up -d`.
+services:
+  zola:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  internal:
+    driver: bridge

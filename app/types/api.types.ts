@@ -1,26 +1,22 @@
-import type { Database, Json } from "@/app/types/database.types"
 import type { Attachment } from "@ai-sdk/ui-utils"
-import type { SupabaseClient } from "@supabase/supabase-js"
-
-export type SupabaseClientType = SupabaseClient<Database>
 
 export interface ContentPart {
   type: string
   text?: string
   toolCallId?: string
   toolName?: string
-  args?: Json
-  result?: Json
+  args?: unknown
+  result?: unknown
   toolInvocation?: {
     state: string
     step: number
     toolCallId: string
     toolName: string
-    args?: Json
-    result?: Json
+    args?: unknown
+    result?: unknown
   }
   reasoning?: string
-  details?: Json[]
+  details?: unknown[]
 }
 
 export interface Message {
@@ -33,21 +29,19 @@ export interface ChatApiParams {
   userId: string
   model: string
   isAuthenticated: boolean
+  incognito?: boolean
 }
 
 export interface LogUserMessageParams {
-  supabase: SupabaseClientType
   userId: string
   chatId: string
   content: string
   attachments?: Attachment[]
   model: string
-  isAuthenticated: boolean
   message_group_id?: string
 }
 
 export interface StoreAssistantMessageParams {
-  supabase: SupabaseClientType
   chatId: string
   messages: Message[]
   message_group_id?: string

@@ -23,8 +23,29 @@ import { formatDataStreamPart } from "@ai-sdk/ui-utils"
 // (event name confirmed from source, not guessed) if/when Hermes starts
 // streaming reasoning.
 
+type HermesToolPart = {
+  type: "tool-invocation"
+  toolInvocation: {
+    state: "call" | "result"
+    step: number
+    toolCallId: string
+    toolName: string
+    args?: unknown
+    result?: unknown
+  }
+}
+
+type HermesFinishPayload = {
+  text: string
+  toolParts: HermesToolPart[]
+}
+
 type HermesStreamOpts = {
   messageId: string
+  /** Called once the underlying SSE stream ends, so the caller can persist
+   * the reconstructed assistant message (used to make the `hermes:` bypass
+   * behave like the normal `onFinish` persistence path). */
+  onFinish?: (payload: HermesFinishPayload) => void | Promise<void>
 }
 
 function parseJsonOr<T>(text: string, fallback: (raw: string) => T): T {
@@ -47,6 +68,9 @@ export function hermesResponsesToDataStream(
       const emit = (line: string) => controller.enqueue(encoder.encode(line))
       emit(formatDataStreamPart("start_step", { messageId: opts.messageId }))
 
+      const textParts: string[] = []
+      const toolParts = new Map<string, HermesToolPart>()
+
       const handleFrame = (frame: string) => {
         const dataLine = frame
           .split("\n")
@@ -65,6 +89,7 @@ export function hermesResponsesToDataStream(
         switch (data.type as string) {
           case "response.output_text.delta": {
             if (typeof data.delta === "string") {
+              textParts.push(data.delta)
               emit(formatDataStreamPart("text", data.delta))
             }
             break
@@ -76,9 +101,20 @@ export function hermesResponsesToDataStream(
               const args = parseJsonOr(String(item.arguments ?? "{}"), (r) => ({
                 raw: r,
               }))
+              const toolCallId = String(item.call_id)
+              toolParts.set(toolCallId, {
+                type: "tool-invocation",
+                toolInvocation: {
+                  state: "call",
+                  step: 0,
+                  toolCallId,
+                  toolName: String(item.name),
+                  args,
+                },
+              })
               emit(
                 formatDataStreamPart("tool_call", {
-                  toolCallId: String(item.call_id),
+                  toolCallId,
                   toolName: String(item.name),
                   args,
                 })
@@ -87,9 +123,22 @@ export function hermesResponsesToDataStream(
               const output = item.output as Array<{ text?: string }> | undefined
               const text = output?.[0]?.text ?? ""
               const result = parseJsonOr<unknown>(text, (r) => r)
+              const toolCallId = String(item.call_id)
+              const existing = toolParts.get(toolCallId)
+              toolParts.set(toolCallId, {
+                type: "tool-invocation",
+                toolInvocation: {
+                  state: "result",
+                  step: 0,
+                  toolCallId,
+                  toolName: existing?.toolInvocation.toolName || "",
+                  args: existing?.toolInvocation.args,
+                  result,
+                },
+              })
               emit(
                 formatDataStreamPart("tool_result", {
-                  toolCallId: String(item.call_id),
+                  toolCallId,
                   result,
                 })
               )
@@ -160,6 +209,14 @@ export function hermesResponsesToDataStream(
           )
         )
       } finally {
+        try {
+          await opts.onFinish?.({
+            text: textParts.join(""),
+            toolParts: [...toolParts.values()],
+          })
+        } catch (err) {
+          console.error("hermes onFinish persistence failed:", err)
+        }
         controller.close()
       }
     },

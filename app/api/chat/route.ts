@@ -4,8 +4,11 @@ import { hermesResponsesToDataStream } from "@/lib/hermes/stream"
 import { getAllModels } from "@/lib/models"
 import { getProviderForModel } from "@/lib/openproviders/provider-map"
 import type { ProviderWithoutOllama } from "@/lib/user-keys"
+import { getCurrentUser } from "@/lib/auth"
+import { db, schema } from "@/lib/db"
 import { Attachment } from "@ai-sdk/ui-utils"
 import { Message as MessageAISDK, streamText, ToolSet } from "ai"
+import { gte, and, eq } from "drizzle-orm"
 import {
   incrementMessageCount,
   logUserMessage,
@@ -19,71 +22,79 @@ export const maxDuration = 60
 type ChatRequest = {
   messages: MessageAISDK[]
   chatId: string
-  userId: string
   model: string
-  isAuthenticated: boolean
   systemPrompt: string
   enableSearch: boolean
   message_group_id?: string
   editCutoffTimestamp?: string
+  /** When true, nothing about this turn is written to the database. */
+  incognito?: boolean
 }
 
 export async function POST(req: Request) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+      })
+    }
+    const userId = user.id
+
     const {
       messages,
       chatId,
-      userId,
       model,
-      isAuthenticated,
       systemPrompt,
       enableSearch,
       message_group_id,
       editCutoffTimestamp,
+      incognito,
     } = (await req.json()) as ChatRequest
 
-    if (!messages || !chatId || !userId) {
+    if (!messages || !chatId) {
       return new Response(
         JSON.stringify({ error: "Error, missing information" }),
         { status: 400 }
       )
     }
 
-    const supabase = await validateAndTrackUsage({
+    const shouldPersist = await validateAndTrackUsage({
       userId,
       model,
-      isAuthenticated,
+      isAuthenticated: true,
+      incognito,
     })
 
-    // Increment message count for successful validation
-    if (supabase) {
-      await incrementMessageCount({ supabase, userId })
+    if (shouldPersist) {
+      await incrementMessageCount({ userId })
     }
 
     const userMessage = messages[messages.length - 1]
 
     // If editing, delete messages from cutoff BEFORE saving the new user message
-    if (supabase && editCutoffTimestamp) {
+    if (shouldPersist && editCutoffTimestamp) {
       try {
-        await supabase
-          .from("messages")
-          .delete()
-          .eq("chat_id", chatId)
-          .gte("created_at", editCutoffTimestamp)
+        await db
+          .delete(schema.messages)
+          .where(
+            and(
+              eq(schema.messages.chatId, chatId),
+              gte(schema.messages.createdAt, new Date(editCutoffTimestamp))
+            )
+          )
       } catch (err) {
         console.error("Failed to delete messages from cutoff:", err)
       }
     }
 
-    if (supabase && userMessage?.role === "user") {
+    if (shouldPersist && userMessage?.role === "user") {
       await logUserMessage({
-        supabase,
         userId,
         chatId,
         content: userMessage.content,
         attachments: userMessage.experimental_attachments as Attachment[],
         model,
-        isAuthenticated,
         message_group_id,
       })
     }
@@ -110,6 +121,23 @@ export async function POST(req: Request) {
       return new Response(
         hermesResponsesToDataStream(hermesRes.body as ReadableStream<Uint8Array>, {
           messageId: crypto.randomUUID(),
+          onFinish: async ({ text, toolParts }) => {
+            if (!shouldPersist) return
+            await storeAssistantMessage({
+              chatId,
+              messages: [
+                {
+                  role: "assistant",
+                  content: [
+                    ...(text ? [{ type: "text", text }] : []),
+                    ...toolParts,
+                  ],
+                },
+              ],
+              message_group_id,
+              model,
+            })
+          },
         }),
         {
           headers: {
@@ -120,14 +148,11 @@ export async function POST(req: Request) {
       )
     }
 
-    let apiKey: string | undefined
-    if (isAuthenticated && userId) {
-      const { getEffectiveApiKey } = await import("@/lib/user-keys")
-      const provider = getProviderForModel(model)
-      apiKey =
-        (await getEffectiveApiKey(userId, provider as ProviderWithoutOllama)) ||
-        undefined
-    }
+    const { getEffectiveApiKey } = await import("@/lib/user-keys")
+    const provider = getProviderForModel(model)
+    const apiKey =
+      (await getEffectiveApiKey(userId, provider as ProviderWithoutOllama)) ||
+      undefined
 
     const result = streamText({
       model: modelConfig.apiSdk(apiKey, { enableSearch }),
@@ -141,9 +166,8 @@ export async function POST(req: Request) {
       },
 
       onFinish: async ({ response }) => {
-        if (supabase) {
+        if (shouldPersist) {
           await storeAssistantMessage({
-            supabase,
             chatId,
             messages:
               response.messages as unknown as import("@/app/types/api.types").Message[],

@@ -64,7 +64,7 @@ To unlock features like auth, file uploads, see [INSTALL.md](./INSTALL.md).
 - [shadcn/ui](https://ui.shadcn.com) — core components
 - [motion-primitives](https://motion-primitives.com) — animated components
 - [vercel ai sdk](https://vercel.com/blog/introducing-the-vercel-ai-sdk) — model integration, AI features
-- [supabase](https://supabase.com) — auth and storage
+- [drizzle orm](https://orm.drizzle.team) — Postgres persistence
 
 ## Sponsors
 

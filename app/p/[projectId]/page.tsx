@@ -1,8 +1,9 @@
 import { LayoutApp } from "@/app/components/layout/layout-app"
 import { ProjectView } from "@/app/p/[projectId]/project-view"
+import { getCurrentUser } from "@/lib/auth"
 import { MessagesProvider } from "@/lib/chat-store/messages/provider"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
-import { createClient } from "@/lib/supabase/server"
+import { db, schema } from "@/lib/db"
+import { and, eq } from "drizzle-orm"
 import { redirect } from "next/navigation"
 
 type Props = {
@@ -12,26 +13,18 @@ type Props = {
 export default async function Page({ params }: Props) {
   const { projectId } = await params
 
-  if (isSupabaseEnabled) {
-    const supabase = await createClient()
-    if (supabase) {
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError || !userData?.user) {
-        redirect("/")
-      }
+  const user = await getCurrentUser()
+  if (!user) {
+    redirect("/auth")
+  }
 
-      // Verify the project belongs to the user
-      const { data: project, error: projectError } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("id", projectId)
-        .eq("user_id", userData.user.id)
-        .single()
+  const [project] = await db
+    .select()
+    .from(schema.projects)
+    .where(and(eq(schema.projects.id, projectId), eq(schema.projects.userId, user.id)))
 
-      if (projectError || !project) {
-        redirect("/")
-      }
-    }
+  if (!project) {
+    redirect("/")
   }
 
   return (

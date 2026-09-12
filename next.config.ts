@@ -12,17 +12,7 @@ const nextConfig: NextConfig = withBundleAnalyzer({
   experimental: {
     optimizePackageImports: ["@phosphor-icons/react"],
   },
-  serverExternalPackages: ["shiki", "vscode-oniguruma"],
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-        port: "",
-        pathname: "/storage/v1/object/public/**",
-      },
-    ],
-  },
+  serverExternalPackages: ["shiki", "vscode-oniguruma", "postgres"],
 })
 
 export default nextConfig

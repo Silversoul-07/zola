@@ -1,33 +1,23 @@
+import { toMessageDTO } from "@/app/api/chats/utils"
 import { APP_DOMAIN } from "@/lib/config"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
-import { createClient } from "@/lib/supabase/server"
+import { db, schema } from "@/lib/db"
+import { asc, eq } from "drizzle-orm"
 import type { Metadata } from "next"
-import { notFound, redirect } from "next/navigation"
+import { redirect } from "next/navigation"
 import Article from "./article"
 
-export const dynamic = "force-static"
+export const dynamic = "force-dynamic"
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ chatId: string }>
 }): Promise<Metadata> {
-  if (!isSupabaseEnabled) {
-    return notFound()
-  }
-
   const { chatId } = await params
-  const supabase = await createClient()
-
-  if (!supabase) {
-    return notFound()
-  }
-
-  const { data: chat } = await supabase
-    .from("chats")
-    .select("title, created_at")
-    .eq("id", chatId)
-    .single()
+  const [chat] = await db
+    .select({ title: schema.chats.title, createdAt: schema.chats.createdAt })
+    .from(schema.chats)
+    .where(eq(schema.chats.id, chatId))
 
   const title = chat?.title || "Chat"
   const description = "A chat in Zola"
@@ -54,41 +44,27 @@ export default async function ShareChat({
 }: {
   params: Promise<{ chatId: string }>
 }) {
-  if (!isSupabaseEnabled) {
-    return notFound()
-  }
-
   const { chatId } = await params
-  const supabase = await createClient()
 
-  if (!supabase) {
-    return notFound()
-  }
+  const [chatData] = await db
+    .select()
+    .from(schema.chats)
+    .where(eq(schema.chats.id, chatId))
 
-  const { data: chatData, error: chatError } = await supabase
-    .from("chats")
-    .select("id, title, created_at")
-    .eq("id", chatId)
-    .single()
-
-  if (chatError || !chatData) {
+  if (!chatData) {
     redirect("/")
   }
 
-  const { data: messagesData, error: messagesError } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("chat_id", chatId)
-    .order("created_at", { ascending: true })
-
-  if (messagesError || !messagesData) {
-    redirect("/")
-  }
+  const messagesData = await db
+    .select()
+    .from(schema.messages)
+    .where(eq(schema.messages.chatId, chatId))
+    .orderBy(asc(schema.messages.createdAt))
 
   return (
     <Article
-      messages={messagesData}
-      date={chatData.created_at || ""}
+      messages={messagesData.map(toMessageDTO) as never}
+      date={(chatData.createdAt || new Date()).toString()}
       title={chatData.title || ""}
       subtitle={"A conversation in Zola"}
     />

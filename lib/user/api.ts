@@ -1,56 +1,42 @@
-import { isSupabaseEnabled } from "@/lib/supabase/config"
-import { createClient } from "@/lib/supabase/server"
+import { getCurrentUser } from "@/lib/auth"
+import { db, schema } from "@/lib/db"
 import {
   convertFromApiFormat,
-  defaultPreferences,
 } from "@/lib/user-preference-store/utils"
+import { eq } from "drizzle-orm"
 import type { UserProfile } from "./types"
 
-export async function getSupabaseUser() {
-  const supabase = await createClient()
-  if (!supabase) return { supabase: null, user: null }
-
-  const { data } = await supabase.auth.getUser()
-  return {
-    supabase,
-    user: data.user ?? null,
-  }
-}
-
 export async function getUserProfile(): Promise<UserProfile | null> {
-  if (!isSupabaseEnabled) {
-    // return fake user profile for no supabase
-    return {
-      id: "guest",
-      email: "guest@zola.chat",
-      display_name: "Guest",
-      profile_image: "",
-      anonymous: true,
-      preferences: defaultPreferences,
-    } as UserProfile
-  }
+  const user = await getCurrentUser()
+  if (!user) return null
 
-  const { supabase, user } = await getSupabaseUser()
-  if (!supabase || !user) return null
-
-  const { data: userProfileData } = await supabase
-    .from("users")
-    .select("*, user_preferences(*)")
-    .eq("id", user.id)
-    .single()
-
-  // Don't load anonymous users in the user store
-  if (userProfileData?.anonymous) return null
-
-  // Format user preferences if they exist
-  const formattedPreferences = userProfileData?.user_preferences
-    ? convertFromApiFormat(userProfileData.user_preferences)
-    : undefined
+  const [preferences] = await db
+    .select()
+    .from(schema.userPreferences)
+    .where(eq(schema.userPreferences.userId, user.id))
 
   return {
-    ...userProfileData,
-    profile_image: user.user_metadata?.avatar_url ?? "",
-    display_name: user.user_metadata?.name ?? "",
-    preferences: formattedPreferences,
-  } as UserProfile
+    id: user.id,
+    email: user.email,
+    display_name: user.displayName || "",
+    profile_image: user.profileImage || "",
+    favorite_models: user.favoriteModels || [],
+    system_prompt: user.systemPrompt,
+    message_count: user.messageCount,
+    daily_message_count: user.dailyMessageCount,
+    daily_reset: user.dailyReset,
+    daily_pro_message_count: user.dailyProMessageCount,
+    daily_pro_reset: user.dailyProReset,
+    created_at: user.createdAt,
+    preferences: preferences
+      ? convertFromApiFormat({
+          layout: preferences.layout,
+          prompt_suggestions: preferences.promptSuggestions,
+          show_tool_invocations: preferences.showToolInvocations,
+          show_conversation_previews: preferences.showConversationPreviews,
+          multi_model_enabled: preferences.multiModelEnabled,
+          hidden_models: preferences.hiddenModels,
+        })
+      : undefined,
+  }
 }

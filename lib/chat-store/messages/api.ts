@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/client"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
 import type { Message as MessageAISDK } from "ai"
+import { fetchClient } from "../../fetch"
+import { API_ROUTE_CHATS } from "../../routes"
 import { readFromIndexedDB, writeToIndexedDB } from "../persist"
 
 export interface ExtendedMessageAISDK extends MessageAISDK {
@@ -8,95 +8,62 @@ export interface ExtendedMessageAISDK extends MessageAISDK {
   model?: string
 }
 
-export async function getMessagesFromDb(
-  chatId: string
-): Promise<MessageAISDK[]> {
-  // fallback to local cache only
-  if (!isSupabaseEnabled) {
-    const cached = await getCachedMessages(chatId)
-    return cached
-  }
+type DbMessage = {
+  id: number | string
+  content: string | null
+  role: MessageAISDK["role"]
+  experimental_attachments?: MessageAISDK["experimental_attachments"]
+  created_at: string | null
+  parts?: MessageAISDK["parts"]
+  message_group_id?: string | null
+  model?: string | null
+}
 
-  const supabase = createClient()
-  if (!supabase) return []
-
-  const { data, error } = await supabase
-    .from("messages")
-    .select(
-      "id, content, role, experimental_attachments, created_at, parts, message_group_id, model"
-    )
-    .eq("chat_id", chatId)
-    .order("created_at", { ascending: true })
-
-  if (!data || error) {
-    console.error("Failed to fetch messages:", error)
-    return []
-  }
-
-  return data.map((message) => ({
+function fromDbMessage(message: DbMessage): MessageAISDK {
+  return {
     ...message,
     id: String(message.id),
     content: message.content ?? "",
     createdAt: new Date(message.created_at || ""),
     parts: (message?.parts as MessageAISDK["parts"]) || undefined,
-    message_group_id: message.message_group_id,
-    model: message.model,
-  }))
+    message_group_id: message.message_group_id ?? undefined,
+    model: message.model ?? undefined,
+  } as MessageAISDK
+}
+
+export async function getMessagesFromDb(
+  chatId: string
+): Promise<MessageAISDK[]> {
+  const res = await fetchClient(`${API_ROUTE_CHATS}/${chatId}/messages`)
+  if (!res.ok) return []
+
+  const data: DbMessage[] = await res.json()
+  return data.map(fromDbMessage)
 }
 
 export async function getLastMessagesFromDb(
   chatId: string,
   limit: number = 2
 ): Promise<MessageAISDK[]> {
-  if (!isSupabaseEnabled) {
-    const cached = await getCachedMessages(chatId)
-    return cached.slice(-limit)
-  }
-
-  const supabase = createClient()
-  if (!supabase) return []
-
-  const { data, error } = await supabase
-    .from("messages")
-    .select(
-      "id, content, role, experimental_attachments, created_at, parts, message_group_id, model"
-    )
-    .eq("chat_id", chatId)
-    .order("created_at", { ascending: false })
-    .limit(limit)
-
-  if (!data || error) {
-    console.error("Failed to fetch last messages: ", error)
-    return []
-  }
-
-  const ascendingData = [...data].reverse()
-  return ascendingData.map((message) => ({
-    ...message,
-    id: String(message.id),
-    content: message.content ?? "",
-    createdAt: new Date(message.created_at || ""),
-    parts: (message?.parts as MessageAISDK["parts"]) || undefined,
-    message_group_id: message.message_group_id,
-    model: message.model,
-  }))
+  const all = await getMessagesFromDb(chatId)
+  return all.slice(-limit)
 }
 
 async function insertMessageToDb(
   chatId: string,
   message: ExtendedMessageAISDK
 ) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  await supabase.from("messages").insert({
-    chat_id: chatId,
-    role: message.role,
-    content: message.content,
-    experimental_attachments: message.experimental_attachments,
-    created_at: message.createdAt?.toISOString() || new Date().toISOString(),
-    message_group_id: message.message_group_id || null,
-    model: message.model || null,
+  await fetchClient(`${API_ROUTE_CHATS}/${chatId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      role: message.role,
+      content: message.content,
+      experimental_attachments: message.experimental_attachments,
+      createdAt: message.createdAt?.toISOString(),
+      message_group_id: message.message_group_id || null,
+      model: message.model || null,
+    }),
   })
 }
 
@@ -104,33 +71,28 @@ async function insertMessagesToDb(
   chatId: string,
   messages: ExtendedMessageAISDK[]
 ) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  const payload = messages.map((message) => ({
-    chat_id: chatId,
-    role: message.role,
-    content: message.content,
-    experimental_attachments: message.experimental_attachments,
-    created_at: message.createdAt?.toISOString() || new Date().toISOString(),
-    message_group_id: message.message_group_id || null,
-    model: message.model || null,
-  }))
-
-  await supabase.from("messages").insert(payload)
+  await fetchClient(`${API_ROUTE_CHATS}/${chatId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+        experimental_attachments: message.experimental_attachments,
+        createdAt: message.createdAt?.toISOString(),
+        message_group_id: message.message_group_id || null,
+        model: message.model || null,
+      })),
+    }),
+  })
 }
 
 async function deleteMessagesFromDb(chatId: string) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  const { error } = await supabase
-    .from("messages")
-    .delete()
-    .eq("chat_id", chatId)
-
-  if (error) {
-    console.error("Failed to clear messages from database:", error)
+  const res = await fetchClient(`${API_ROUTE_CHATS}/${chatId}/messages`, {
+    method: "DELETE",
+  })
+  if (!res.ok) {
+    console.error("Failed to clear messages from database")
   }
 }
 

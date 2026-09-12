@@ -4,83 +4,37 @@ import {
   getModelsWithAccessFlags,
   refreshModelsCache,
 } from "@/lib/models"
-import { createClient } from "@/lib/supabase/server"
+import { getCurrentUser } from "@/lib/auth"
+import { db, schema } from "@/lib/db"
+import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
-    const supabase = await createClient()
+    const user = await getCurrentUser()
 
-    if (!supabase) {
-      const allModels = await getAllModels()
-      const models = allModels.map((model) => ({
-        ...model,
-        accessible: true,
-      }))
-      return new Response(JSON.stringify({ models }), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-    }
-
-    const { data: authData } = await supabase.auth.getUser()
-
-    if (!authData?.user?.id) {
+    if (!user) {
       const models = await getModelsWithAccessFlags()
-      return new Response(JSON.stringify({ models }), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      return NextResponse.json({ models })
     }
 
-    const { data, error } = await supabase
-      .from("user_keys")
-      .select("provider")
-      .eq("user_id", authData.user.id)
+    const rows = await db
+      .select({ provider: schema.userKeys.provider })
+      .from(schema.userKeys)
+      .where(eq(schema.userKeys.userId, user.id))
 
-    if (error) {
-      console.error("Error fetching user keys:", error)
-      const models = await getModelsWithAccessFlags()
-      return new Response(JSON.stringify({ models }), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-    }
-
-    const userProviders = data?.map((k) => k.provider) || []
+    const userProviders = rows.map((k: { provider: string }) => k.provider)
 
     if (userProviders.length === 0) {
       const models = await getModelsWithAccessFlags()
-      return new Response(JSON.stringify({ models }), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      return NextResponse.json({ models })
     }
 
     const models = await getModelsForUserProviders(userProviders)
-
-    return new Response(JSON.stringify({ models }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
+    return NextResponse.json({ models })
   } catch (error) {
     console.error("Error fetching models:", error)
-    return new Response(JSON.stringify({ error: "Failed to fetch models" }), {
-      status: 500,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
+    return NextResponse.json({ error: "Failed to fetch models" }, { status: 500 })
   }
 }
 

@@ -2,8 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
-import { createClient } from "@/lib/supabase/client"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
+import { fetchClient } from "@/lib/fetch"
 import { CaretLeft, SealCheck, Spinner } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
 import { useState } from "react"
@@ -23,10 +22,6 @@ export function FeedbackForm({ authUserId, onClose }: FeedbackFormProps) {
     "idle" | "submitting" | "success" | "error"
   >("idle")
   const [feedback, setFeedback] = useState("")
-
-  if (!isSupabaseEnabled) {
-    return null
-  }
 
   const handleClose = () => {
     setFeedback("")
@@ -48,24 +43,16 @@ export function FeedbackForm({ authUserId, onClose }: FeedbackFormProps) {
     if (!feedback.trim()) return
 
     try {
-      const supabase = createClient()
-
-      if (!supabase) {
-        toast({
-          title: "Feedback is not supported in this deployment",
-          status: "info",
-        })
-        return
-      }
-
-      const { error } = await supabase.from("feedback").insert({
-        message: feedback,
-        user_id: authUserId,
+      const res = await fetchClient("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: feedback }),
       })
 
-      if (error) {
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
         toast({
-          title: `Error submitting feedback: ${error}`,
+          title: `Error submitting feedback: ${data.error || res.statusText}`,
           status: "error",
         })
         setStatus("error")

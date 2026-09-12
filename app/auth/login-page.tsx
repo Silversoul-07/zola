@@ -1,42 +1,41 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { signInWithGoogle } from "@/lib/api"
-import { createClient } from "@/lib/supabase/client"
-import Image from "next/image"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { HeaderGoBack } from "../components/header-go-back"
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [isPending, setIsPending] = useState(false)
 
-  async function handleSignInWithGoogle() {
-    const supabase = createClient()
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+    setIsPending(true)
 
-    if (!supabase) {
-      throw new Error("Supabase is not configured")
-    }
-
+    const formData = new FormData(e.currentTarget)
     try {
-      setIsLoading(true)
-      setError(null)
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: formData.get("username"),
+          password: formData.get("password"),
+        }),
+      })
 
-      const data = await signInWithGoogle(supabase)
-
-      // Redirect to the provider URL
-      if (data?.url) {
-        window.location.href = data.url
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error || "Invalid username or password")
+        return
       }
-    } catch (err: unknown) {
-      console.error("Error signing in with Google:", err)
-      setError(
-        (err as Error).message ||
-          "An unexpected error occurred. Please try again."
-      )
+
+      router.push("/")
+      router.refresh()
     } finally {
-      setIsLoading(false)
+      setIsPending(false)
     }
   }
 
@@ -48,10 +47,10 @@ export default function LoginPage() {
         <div className="w-full max-w-md space-y-8">
           <div className="text-center">
             <h1 className="text-foreground text-3xl font-medium tracking-tight sm:text-4xl">
-              Welcome to Zola
+              Welcome back
             </h1>
             <p className="text-muted-foreground mt-3">
-              Sign in below to increase your message limits.
+              Sign in with your username and password.
             </p>
           </div>
           {error && (
@@ -59,41 +58,48 @@ export default function LoginPage() {
               {error}
             </div>
           )}
-          <div className="mt-8">
-            <Button
-              variant="secondary"
-              className="w-full text-base sm:text-base"
-              size="lg"
-              onClick={handleSignInWithGoogle}
-              disabled={isLoading}
-            >
-              <img
-                src="https://www.google.com/favicon.ico"
-                alt="Google logo"
-                width={20}
-                height={20}
-                className="mr-2 size-4"
+          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="username" className="text-foreground text-sm">
+                Username
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                className="border-border bg-background text-foreground w-full rounded-md border px-3 py-2 text-base outline-hidden"
               />
-              <span>
-                {isLoading ? "Connecting..." : "Continue with Google"}
-              </span>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="password" className="text-foreground text-sm">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="border-border bg-background text-foreground w-full rounded-md border px-3 py-2 text-base outline-hidden"
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="secondary"
+              className="w-full text-base"
+              size="lg"
+              disabled={isPending}
+            >
+              {isPending ? "Signing in..." : "Sign in"}
             </Button>
-          </div>
+          </form>
         </div>
       </main>
 
       <footer className="text-muted-foreground py-6 text-center text-sm">
-        {/* @todo */}
-        <p>
-          By continuing, you agree to our{" "}
-          <Link href="/" className="text-foreground hover:underline">
-            Terms of Service
-          </Link>{" "}
-          and{" "}
-          <Link href="/" className="text-foreground hover:underline">
-            Privacy Policy
-          </Link>
-        </p>
+        <p>Self-hosted. Credentials are configured by the operator.</p>
       </footer>
     </div>
   )
