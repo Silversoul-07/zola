@@ -46,6 +46,9 @@ export const chats = pgTable("chats", {
   title: text("title"),
   model: text("model"),
   systemPrompt: text("system_prompt"),
+  // Session id on the agent's own runtime (currently OpenCode), reused across
+  // turns for the same chat. Null for Hermes and non-agent chats.
+  runtimeSessionId: text("runtime_session_id"),
   public: boolean("public").default(false),
   pinned: boolean("pinned").notNull().default(false),
   pinnedAt: timestamp("pinned_at", { withTimezone: true }),
