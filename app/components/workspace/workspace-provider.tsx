@@ -91,6 +91,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setActivePath((current) =>
         current === path ? (next.length ? next[next.length - 1].path : null) : current
       )
+      // Closing the last tab closes the pane; an empty pane had no way out.
+      if (!next.length) setIsOpen(false)
       return next
     })
   }

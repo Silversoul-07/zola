@@ -2,9 +2,8 @@
 
 import { CanvasTab } from "@/app/components/chat/canvas-tab"
 import { CodeBlockCode } from "@/components/prompt-kit/code-block"
-import { useChatSession } from "@/lib/chat-store/session/provider"
 import { cn } from "@/lib/utils"
-import { FilePlus, MagnifyingGlass, X } from "@phosphor-icons/react"
+import { X } from "@phosphor-icons/react"
 import { useEffect, useRef, useState } from "react"
 import { useWorkspace } from "./workspace-provider"
 
@@ -44,37 +43,15 @@ const MIN_WIDTH = 320
 const DEFAULT_WIDTH_PCT = 0.4
 
 export function WorkspacePane() {
-  const { isOpen, tabs, activePath, openFile, openCanvas, close, setActivePath, closeTab } =
-    useWorkspace()
+  const { isOpen, tabs, activePath, close, setActivePath, closeTab } = useWorkspace()
   const [width, setWidth] = useState<number | null>(null)
   const [files, setFiles] = useState<Record<string, FileState>>({})
-  const [query, setQuery] = useState("")
-  const [matches, setMatches] = useState<string[]>([])
-  const [creatingCanvas, setCreatingCanvas] = useState(false)
   const paneRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
-  const { chatId } = useChatSession()
 
   const activeTab = tabs.find((t) => t.path === activePath) ?? null
   const activeFile =
     activePath && activeTab?.kind === "file" ? files[activePath] : undefined
-
-  const createCanvas = async () => {
-    if (!chatId || creatingCanvas) return
-    setCreatingCanvas(true)
-    try {
-      const res = await fetch("/api/cloud9/canvas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, title: "Untitled", content: "" }),
-      })
-      if (!res.ok) return
-      const canvas = await res.json()
-      openCanvas(canvas.id, canvas.title, canvas.content ?? "")
-    } finally {
-      setCreatingCanvas(false)
-    }
-  }
 
   // Fetch content once per opened path; cached in `files` so tab switches don't refetch.
   useEffect(() => {
@@ -120,21 +97,6 @@ export function WorkspacePane() {
     }
   }, [activeTab?.path, targetLine, activeFile?.status])
 
-  // Quick open: debounced search against /api/cloud9/files?q=
-  useEffect(() => {
-    if (!query.trim()) {
-      setMatches([])
-      return
-    }
-    const timer = setTimeout(() => {
-      fetch(`/api/cloud9/files?q=${encodeURIComponent(query)}`)
-        .then((res) => (res.ok ? res.json() : []))
-        .then((data) => setMatches(Array.isArray(data) ? data.slice(0, 20) : []))
-        .catch(() => setMatches([]))
-    }, 250)
-    return () => clearTimeout(timer)
-  }, [query])
-
   useEffect(() => {
     if (!isOpen) return
     const onKeyDown = (e: KeyboardEvent) => {
@@ -174,44 +136,6 @@ export function WorkspacePane() {
         onMouseDown={startDrag}
         className="hover:bg-border absolute top-0 left-0 z-10 h-full w-1 cursor-col-resize"
       />
-
-      <div className="border-border flex flex-col gap-1.5 border-b p-2">
-        <div className="relative">
-          <MagnifyingGlass className="text-muted-foreground absolute top-1/2 left-2 -translate-y-1/2" size={14} />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Quick open…"
-            className="border-border bg-background w-full rounded-md border py-1 pr-2 pl-7 text-sm focus:outline-none"
-          />
-        </div>
-        <button
-          onClick={createCanvas}
-          disabled={!chatId || creatingCanvas}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-start text-xs disabled:opacity-50"
-        >
-          <FilePlus size={13} />
-          New canvas
-        </button>
-        {matches.length > 0 && (
-          <ul className="border-border max-h-40 overflow-y-auto rounded-md border text-xs">
-            {matches.map((m) => (
-              <li key={m}>
-                <button
-                  className="hover:bg-muted block w-full truncate px-2 py-1 text-left font-mono"
-                  onClick={() => {
-                    openFile(m)
-                    setQuery("")
-                    setMatches([])
-                  }}
-                >
-                  {m}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
 
       {tabs.length > 1 && (
         <div className="border-border flex shrink-0 overflow-x-auto border-b">

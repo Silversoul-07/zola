@@ -37,7 +37,8 @@ export function CanvasTab({
   const { updateCanvasTitle, sendCanvasInstruction } = useWorkspace()
   const [title, setTitle] = useState(initialTitle)
   const [content, setContent] = useState(initialContent)
-  const [preview, setPreview] = useState(false)
+  // Rendered by default; the pencil switches to the raw editor.
+  const [preview, setPreview] = useState(initialContent.trim().length > 0)
   const [selection, setSelection] = useState<Selection | null>(null)
   const [instruction, setInstruction] = useState("")
   const bodyRef = useRef<HTMLDivElement>(null)
