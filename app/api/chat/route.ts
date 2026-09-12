@@ -1,6 +1,8 @@
-import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
+import { AGENTS, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { hermesRequest } from "@/lib/hermes/client"
 import { hermesResponsesToDataStream } from "@/lib/hermes/stream"
+import { opencodeCreateSession, opencodeRequest } from "@/lib/opencode/client"
+import { opencodeEventsToDataStream } from "@/lib/opencode/stream"
 import { getAllModels } from "@/lib/models"
 import { getProviderForModel } from "@/lib/openproviders/provider-map"
 import type { ProviderWithoutOllama } from "@/lib/user-keys"
@@ -111,6 +113,75 @@ export async function POST(req: Request) {
     }
 
     const effectiveSystemPrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT
+
+    const runtime = agentId
+      ? AGENTS.find((a) => a.id === agentId)?.runtime ?? "hermes"
+      : undefined
+
+    // OpenCode is a coder agent (bash/edit/read/... tools) that runs its own
+    // server-side session; we post the latest user turn to that session and
+    // stream its event bus back, mapped to the same data-stream protocol.
+    if (runtime === "opencode") {
+      const [chatRow] = await db
+        .select({
+          title: schema.chats.title,
+          runtimeSessionId: schema.chats.runtimeSessionId,
+        })
+        .from(schema.chats)
+        .where(eq(schema.chats.id, chatId))
+
+      let sessionId = chatRow?.runtimeSessionId ?? undefined
+      if (!sessionId) {
+        const session = await opencodeCreateSession(
+          chatRow?.title ?? undefined
+        )
+        sessionId = session.id
+        if (shouldPersist) {
+          await db
+            .update(schema.chats)
+            .set({ runtimeSessionId: sessionId })
+            .where(eq(schema.chats.id, chatId))
+        }
+      }
+
+      const userText =
+        typeof userMessage?.content === "string" ? userMessage.content : ""
+
+      const eventStream = await opencodeRequest({
+        sessionId,
+        text: userText,
+        model,
+      })
+
+      return new Response(
+        opencodeEventsToDataStream(eventStream, {
+          sessionId,
+          onFinish: async ({ text, toolParts }) => {
+            if (!shouldPersist) return
+            await storeAssistantMessage({
+              chatId,
+              messages: [
+                {
+                  role: "assistant",
+                  content: [
+                    ...(text ? [{ type: "text", text }] : []),
+                    ...toolParts,
+                  ],
+                },
+              ],
+              message_group_id,
+              model,
+            })
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-Vercel-AI-Data-Stream": "v1",
+          },
+        }
+      )
+    }
 
     // Hermes Agent runs its own model + tools server-side on our VM; bypass
     // streamText entirely and stream its /v1/responses SSE straight through.

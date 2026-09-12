@@ -1,0 +1,114 @@
+// Server-side client for the OpenCode coder-agent server (opencode serve).
+// Basic auth (user "opencode") never reaches the browser.
+import { fetchJson } from "@/lib/cloud9/fetch-json"
+
+const BASE = process.env.OPENCODE_URL || "https://opencode.kryos.dev"
+const PASSWORD = process.env.OPENCODE_SERVER_PASSWORD || ""
+
+function authHeader(): string {
+  return `Basic ${Buffer.from(`opencode:${PASSWORD}`).toString("base64")}`
+}
+
+type OpencodeRequestArgs = {
+  sessionId: string
+  text: string
+  /** LiteLLM lane id from our model picker, or "hermes-agent" for OpenCode's own default. */
+  model?: string
+  signal?: AbortSignal
+}
+
+// Opens the global SSE event stream first (so no `message.part.updated`
+// events are missed), then kicks off the prompt and returns the event
+// stream's body for the caller to pipe through opencodeEventsToDataStream.
+export async function opencodeRequest({
+  sessionId,
+  text,
+  model,
+  signal,
+}: OpencodeRequestArgs): Promise<ReadableStream<Uint8Array>> {
+  const eventRes = await fetch(`${BASE}/event`, {
+    headers: { Authorization: authHeader(), Accept: "text/event-stream" },
+    signal,
+  })
+  if (!eventRes.ok || !eventRes.body) {
+    throw new Error(`OpenCode /event failed (${eventRes.status})`)
+  }
+
+  const promptController = new AbortController()
+  const timeout = setTimeout(() => promptController.abort(), 15000)
+  try {
+    const body: Record<string, unknown> = { parts: [{ type: "text", text }] }
+    if (model && model !== "hermes-agent") {
+      body.model = {
+        providerID: process.env.OPENCODE_PROVIDER_ID || "litellm",
+        modelID: model,
+      }
+    }
+    const promptRes = await fetch(
+      `${BASE}/session/${encodeURIComponent(sessionId)}/prompt_async`,
+      {
+        method: "POST",
+        signal: promptController.signal,
+        headers: {
+          Authorization: authHeader(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }
+    )
+    if (!promptRes.ok) {
+      const errText = await promptRes.text().catch(() => "")
+      throw new Error(
+        `OpenCode prompt_async failed (${promptRes.status}): ${errText}`
+      )
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  return eventRes.body
+}
+
+// Creates a session so the chat has a `runtime_session_id` to reuse on
+// subsequent turns (see the chat route's session-mapping logic).
+export async function opencodeCreateSession(
+  title?: string
+): Promise<{ id: string }> {
+  const res = await fetch(`${BASE}/session`, {
+    method: "POST",
+    headers: {
+      Authorization: authHeader(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(title ? { title } : {}),
+  })
+  if (!res.ok) {
+    throw new Error(`OpenCode create session failed (${res.status})`)
+  }
+  return res.json()
+}
+
+export type OpencodeSession = { id: string; title: string; time: { updated: number } }
+
+// Used by app/api/cloud9/opencode/sessions/route.ts.
+export function opencodeListSessions() {
+  return fetchJson<OpencodeSession[]>(`${BASE}/session`, {
+    headers: { Authorization: authHeader() },
+  })
+}
+
+// Used by app/api/cloud9/opencode/diff/route.ts.
+export function opencodeDiff(sessionId: string) {
+  return fetchJson<unknown>(
+    `${BASE}/session/${encodeURIComponent(sessionId)}/diff`,
+    { headers: { Authorization: authHeader() } }
+  )
+}
+
+// Used by app/api/cloud9/agents/route.ts for the OpenCode agent's health card.
+export function opencodeHealth() {
+  return fetchJson<{ status: string; version?: string }>(
+    `${BASE}/global/health`,
+    { headers: { Authorization: authHeader() } }
+  )
+}

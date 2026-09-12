@@ -36,19 +36,34 @@ export const MODEL_DEFAULT = "deepseek-v4-flash"
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Zola"
 export const APP_DOMAIN = "https://zola.chat"
 
-// Agent picker (header): NEXT_PUBLIC_AGENTS is a JSON array of { id, name }.
-// Selecting an agent routes the chat through Hermes (see app/api/chat/route.ts);
-// the model itself is still chosen independently via the chat-box model picker.
-export type AgentConfig = { id: string; name: string }
+// Agent picker (header): NEXT_PUBLIC_AGENTS is a JSON array of { id, name, runtime? }.
+// `runtime` picks which server-side agent backend handles the chat (see the
+// runtime dispatch in app/api/chat/route.ts); it defaults to "hermes" so
+// existing NEXT_PUBLIC_AGENTS values (no runtime field) keep working.
+// The model itself is still chosen independently via the chat-box model picker.
+export type AgentConfig = {
+  id: string
+  name: string
+  runtime: "hermes" | "opencode"
+}
 
-const DEFAULT_AGENTS: AgentConfig[] = [{ id: "hermes", name: "Hermes Agent" }]
+const DEFAULT_AGENTS: AgentConfig[] = [
+  { id: "hermes", name: "Hermes Agent", runtime: "hermes" },
+]
 
 function parseAgents(): AgentConfig[] {
   const raw = process.env.NEXT_PUBLIC_AGENTS
   if (!raw) return DEFAULT_AGENTS
   try {
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_AGENTS
+    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_AGENTS
+    return (parsed as Array<{ id: string; name: string; runtime?: string }>).map(
+      (agent) => ({
+        id: agent.id,
+        name: agent.name,
+        runtime: agent.runtime === "opencode" ? "opencode" : "hermes",
+      })
+    )
   } catch {
     return DEFAULT_AGENTS
   }
