@@ -8,105 +8,103 @@ import {
 } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import { isToolUIPart, type UIMessage } from "ai"
-import { BrainIcon, ChevronDownIcon, MessageSquareIcon } from "lucide-react"
+import { BrainIcon, ChevronDownIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { type OpencodePermissionData, PermissionCard } from "./permission-card"
 import { StepRow, ToolInvocation } from "./tool-invocation"
+import { getToolLabel } from "./tools/tool-labels"
 
 type Part = UIMessage["parts"][number]
+
+export type Run =
+  | { kind: "text"; text: string }
+  | { kind: "work"; parts: Part[] }
+
+const isWork = (p: Part) =>
+  isToolUIPart(p) || p.type === "reasoning" || p.type === "data-opencode-permission"
+
+// Split a message into alternating prose and work runs, in order. A work run
+// is a batch of consecutive tool calls / reasoning / permission prompts;
+// the prose between batches stays prose (Claude.ai's "text, tools, text").
+export function segmentParts(parts: Part[]): Run[] {
+  const runs: Run[] = []
+  for (const p of parts) {
+    const last = runs[runs.length - 1]
+    if (isWork(p)) {
+      if (last?.kind === "work") last.parts.push(p)
+      else runs.push({ kind: "work", parts: [p] })
+    } else if (p.type === "text" && p.text) {
+      if (last?.kind === "text") last.text += p.text
+      else runs.push({ kind: "text", text: p.text })
+    }
+  }
+  return runs.filter((r) => r.kind === "work" || r.text.trim())
+}
 
 function firstLine(text: string, max = 110): string {
   const line = text.trim().split("\n").find((l) => l.trim()) ?? ""
   return line.length > max ? `${line.slice(0, max)}…` : line
 }
 
-// Claude-style step group: everything the agent did before its final answer
-// (interstitial text, reasoning, tool calls, permission prompts) folds into
-// one collapsible block: a summary line with the turn duration, and one flat
-// row per step inside.
+function toolNameOf(p: Part): string {
+  if ("toolName" in p && typeof p.toolName === "string") return p.toolName
+  return p.type.startsWith("tool-") ? p.type.slice(5) : p.type
+}
+
+const COMMAND_TOOLS = new Set(["terminal", "execute_code", "process_manage"])
+
+function groupLabel(parts: Part[], running: boolean): string {
+  const tools = parts.filter(isToolUIPart)
+  const n = tools.length
+  if (n === 0) return running ? "Thinking…" : "Thought"
+  if (n === 1) return getToolLabel(toolNameOf(tools[0]), running)
+  const allCommands = tools.every((t) => COMMAND_TOOLS.has(toolNameOf(t)))
+  if (allCommands) return running ? `Running ${n} commands…` : `Ran ${n} commands`
+  return running ? `Using ${n} tools…` : `Used ${n} tools`
+}
+
+// One collapsible batch of tool calls, inline in the reply. Header is the
+// batch label ("Ran 2 commands"); body is one flat row per step.
 export function WorkGroup({
   parts,
   streaming,
-  durationMs,
   timings,
   showTools,
 }: {
   parts: Part[]
   streaming: boolean
-  durationMs?: number
   timings?: Record<string, number>
   showTools: boolean
 }) {
   const [open, setOpen] = useState(streaming)
-  // Collapse once the turn finishes, like Claude's "Worked for 14s".
   useEffect(() => {
     if (!streaming) setOpen(false)
   }, [streaming])
 
-  const [elapsed, setElapsed] = useState(0)
-  useEffect(() => {
-    if (!streaming) return
-    const started = Date.now()
-    const t = setInterval(() => setElapsed(Date.now() - started), 1000)
-    return () => clearInterval(t)
-  }, [streaming])
-
-  const toolCount = parts.filter(isToolUIPart).length
-  const thinkingCount = parts.filter((p) => p.type === "reasoning").length
-  const firstText = parts.find(
-    (p): p is { type: "text"; text: string } => p.type === "text" && !!p.text.trim()
+  const visible = parts.filter(
+    (p) => showTools || p.type === "data-opencode-permission"
   )
-  const counts = [
-    thinkingCount ? `${thinkingCount} thinking` : null,
-    toolCount ? `${toolCount} tool ${toolCount === 1 ? "call" : "calls"}` : null,
-  ]
-    .filter(Boolean)
-    .join(", ")
-  const summary = firstText ? firstLine(firstText.text) : streaming ? "Working" : counts
-  const seconds = Math.round((durationMs ?? elapsed) / 1000)
+  if (visible.length === 0) return null
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="w-full min-w-0">
-      <CollapsibleTrigger className="text-muted-foreground hover:text-foreground flex w-full min-w-0 items-center gap-2 py-1 text-left text-sm transition-colors">
-        <span
-          className={cn(
-            "size-2 shrink-0 rounded-full",
-            streaming ? "bg-primary animate-pulse" : "bg-muted-foreground/50"
-          )}
-        />
-        <span className="min-w-0 truncate">{summary}</span>
-        {firstText && counts && (
-          <span className="text-muted-foreground/70 hidden shrink-0 text-xs sm:inline">
-            · {counts}
-          </span>
-        )}
-        {seconds > 0 && <span className="shrink-0 text-xs tabular-nums">{seconds}s</span>}
+      <CollapsibleTrigger className="text-muted-foreground hover:text-foreground flex items-center gap-1 py-1 text-left text-sm transition-colors">
+        <span className={cn(streaming && "animate-pulse")}>{groupLabel(parts, streaming)}</span>
         <ChevronDownIcon
           className={cn("size-4 shrink-0 transition-transform", open && "rotate-180")}
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-1">
-        <div className="border-border/60 flex w-full min-w-0 flex-col rounded-lg border py-1">
-          {parts.map((part, i) => {
-            if (part.type === "text") {
-              if (!part.text.trim()) return null
-              return (
-                <StepRow key={i} icon={<MessageSquareIcon />} label="Output" summary={firstLine(part.text)}>
-                  <div className="prose prose-sm dark:prose-invert text-muted-foreground w-full min-w-0 max-w-full">
-                    <MessageResponse>{part.text}</MessageResponse>
-                  </div>
-                </StepRow>
-              )
-            }
+        <div className="border-border/60 divide-border/60 flex w-full min-w-0 flex-col divide-y rounded-lg border">
+          {visible.map((part, i) => {
             if (part.type === "reasoning") {
-              if (!part.text) return null
               return (
                 <StepRow
                   key={i}
                   icon={<BrainIcon />}
                   label="Thinking"
                   summary={firstLine(part.text)}
-                  running={streaming && i === parts.length - 1}
+                  running={streaming && i === visible.length - 1}
                 >
                   <div className="prose prose-sm dark:prose-invert text-muted-foreground w-full min-w-0 max-w-full">
                     <MessageResponse>{part.text}</MessageResponse>
@@ -115,9 +113,9 @@ export function WorkGroup({
               )
             }
             if (isToolUIPart(part)) {
-              return showTools ? (
+              return (
                 <ToolInvocation key={part.toolCallId ?? i} toolInvocations={[part]} timings={timings} />
-              ) : null
+              )
             }
             if (part.type === "data-opencode-permission") {
               const data = (part as { data: OpencodePermissionData }).data
@@ -133,15 +131,4 @@ export function WorkGroup({
       </CollapsibleContent>
     </Collapsible>
   )
-}
-
-// Index of the last "work" part (tool, reasoning, permission). Text after it
-// is the final answer; everything up to and including it is the work group.
-export function splitWork(parts: Part[]): { work: Part[]; answer: Part[] } {
-  let last = -1
-  parts.forEach((p, i) => {
-    if (isToolUIPart(p) || p.type === "reasoning" || p.type === "data-opencode-permission") last = i
-  })
-  if (last < 0) return { work: [], answer: parts }
-  return { work: parts.slice(0, last + 1), answer: parts.slice(last + 1) }
 }

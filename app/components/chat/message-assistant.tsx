@@ -5,11 +5,6 @@ import {
   MessageContent,
   MessageResponse,
 } from "@/components/ai-elements/message"
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningTrigger,
-} from "@/components/ai-elements/reasoning"
 import { useWorkspace } from "@/app/components/workspace/workspace-provider"
 import { useChatSession } from "@/lib/chat-store/session/provider"
 import { textFromMessage } from "@/lib/chat-store/messages/api"
@@ -22,12 +17,11 @@ import { useCallback, useRef } from "react"
 import { CanvasBlock } from "./canvas-block"
 import { getSources } from "./get-sources"
 import { Loader } from "./loader"
-import { type OpencodePermissionData, PermissionCard } from "./permission-card"
+import type { OpencodePermissionData } from "./permission-card"
 import { QuoteButton } from "./quote-button"
 import { SearchImages } from "./search-images"
 import { SourcesList } from "./sources-list"
-import { ToolInvocation } from "./tool-invocation"
-import { splitWork, WorkGroup } from "./work-group"
+import { segmentParts, WorkGroup } from "./work-group"
 import { turnFromParts } from "@/lib/turn"
 import { useAssistantMessageSelection } from "./useAssistantMessageSelection"
 
@@ -68,17 +62,10 @@ export function MessageAssistant({
   const reasoningPart = parts?.find(
     (part): part is { type: "reasoning"; text: string } => part.type === "reasoning"
   )
-  const { work, answer } = splitWork(parts ?? [])
-  const hasWork = work.length > 0
-  const answerText = hasWork
-    ? answer
-        .filter((p): p is { type: "text"; text: string } => p.type === "text")
-        .map((p) => p.text)
-        .join("")
-    : children
+  const runs = segmentParts(parts ?? [])
+  const answerText = children
   const contentNullOrEmpty = answerText === null || answerText === ""
   const isLastStreaming = status === "streaming" && isLast
-  const segments = contentNullOrEmpty ? [] : parseCanvasSegments(answerText)
   const turn = turnFromParts(parts)
   const { chatId } = useChatSession()
   const { openCanvas } = useWorkspace()
@@ -147,55 +134,46 @@ export function MessageAssistant({
       >
         {showThinking && <Loader />}
 
-        {hasWork ? (
-          <WorkGroup
-            parts={work}
-            streaming={Boolean(isLast && (status === "streaming" || status === "submitted"))}
-            durationMs={turn?.durationMs}
-            timings={turn?.tools}
-            showTools={preferences.showToolInvocations}
-          />
-        ) : (
-          <>
-            {reasoningPart && reasoningPart.text && (
-              <Reasoning isStreaming={status === "streaming"}>
-                <ReasoningTrigger />
-                <ReasoningContent>{reasoningPart.text}</ReasoningContent>
-              </Reasoning>
-            )}
-            {toolInvocationParts.length > 0 && preferences.showToolInvocations && (
-              <ToolInvocation toolInvocations={toolInvocationParts} />
-            )}
-            {permissionParts.map((part) => (
-              <PermissionCard key={part.id ?? part.data.id} data={part.data} />
-            ))}
-          </>
+        {runs.map((run, i) =>
+          run.kind === "work" ? (
+            <WorkGroup
+              key={i}
+              parts={run.parts}
+              streaming={Boolean(
+                isLast &&
+                  i === runs.length - 1 &&
+                  (status === "streaming" || status === "submitted")
+              )}
+              timings={turn?.tools}
+              showTools={preferences.showToolInvocations}
+            />
+          ) : (
+            parseCanvasSegments(run.text).map((segment, j) =>
+              segment.kind === "canvas" ? (
+                <CanvasBlock
+                  key={`${i}-${j}`}
+                  title={segment.title}
+                  content={segment.content}
+                  complete={segment.complete}
+                  streaming={Boolean(isLastStreaming)}
+                />
+              ) : segment.text.trim() ? (
+                <MessageContent
+                  key={`${i}-${j}`}
+                  className={cn(
+                    "prose dark:prose-invert relative w-full min-w-0 max-w-full bg-transparent p-0",
+                    "prose-h1:scroll-m-20 prose-h1:text-2xl prose-h1:font-semibold prose-h2:mt-8 prose-h2:scroll-m-20 prose-h2:text-xl prose-h2:mb-3 prose-h2:font-medium prose-h3:scroll-m-20 prose-h3:text-base prose-h3:font-medium prose-h4:scroll-m-20 prose-h5:scroll-m-20 prose-h6:scroll-m-20 prose-strong:font-medium prose-table:block prose-table:overflow-y-auto"
+                  )}
+                >
+                  <MessageResponse>{segment.text}</MessageResponse>
+                </MessageContent>
+              ) : null
+            )
+          )
         )}
 
         {searchImageResults.length > 0 && (
           <SearchImages results={searchImageResults as never[]} />
-        )}
-
-        {segments.map((segment, i) =>
-          segment.kind === "canvas" ? (
-            <CanvasBlock
-              key={i}
-              title={segment.title}
-              content={segment.content}
-              complete={segment.complete}
-              streaming={Boolean(isLastStreaming)}
-            />
-          ) : segment.text.trim() ? (
-            <MessageContent
-              key={i}
-              className={cn(
-                "prose dark:prose-invert relative w-full min-w-0 max-w-full bg-transparent p-0",
-                "prose-h1:scroll-m-20 prose-h1:text-2xl prose-h1:font-semibold prose-h2:mt-8 prose-h2:scroll-m-20 prose-h2:text-xl prose-h2:mb-3 prose-h2:font-medium prose-h3:scroll-m-20 prose-h3:text-base prose-h3:font-medium prose-h4:scroll-m-20 prose-h5:scroll-m-20 prose-h6:scroll-m-20 prose-strong:font-medium prose-table:block prose-table:overflow-y-auto"
-              )}
-            >
-              <MessageResponse>{segment.text}</MessageResponse>
-            </MessageContent>
-          ) : null
         )}
 
         {sources && sources.length > 0 && <SourcesList sources={sources} />}

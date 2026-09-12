@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import type { UIMessage } from "ai"
-import { ChevronRightIcon, WrenchIcon } from "lucide-react"
+import { ChevronRightIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { getToolRenderer } from "./tools"
 import { getToolLabel, getToolSummary } from "./tools/tool-labels"
@@ -48,7 +48,7 @@ export function StepRow({
   defaultOpen = false,
   children,
 }: {
-  icon: ReactNode
+  icon?: ReactNode
   label: string
   summary?: string
   running?: boolean
@@ -62,14 +62,16 @@ export function StepRow({
     <Collapsible defaultOpen={defaultOpen} className="group/row w-full min-w-0">
       <CollapsibleTrigger
         className={cn(
-          "hover:bg-accent/40 flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+          "hover:bg-accent/40 flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left text-sm transition-colors",
           !children && "pointer-events-none"
         )}
       >
-        <span className="text-muted-foreground flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">
-          {icon}
-        </span>
-        <span className="shrink-0 font-medium">
+        {icon && (
+          <span className="text-muted-foreground flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">
+            {icon}
+          </span>
+        )}
+        <span className="text-muted-foreground shrink-0">
           {running ? <Shimmer as="span">{label}</Shimmer> : label}
         </span>
         {summary && (
@@ -95,7 +97,11 @@ export function StepRow({
         )}
       </CollapsibleTrigger>
       {children && (
-        <CollapsibleContent className="min-w-0 pb-2 pl-8 pr-2">{children}</CollapsibleContent>
+        <CollapsibleContent className="min-w-0 px-2 pb-2">
+          {/* Every step body is the same box: full width, capped height,
+              scrolls inside. Long output never stretches the transcript. */}
+          <div className="max-h-80 w-full min-w-0 overflow-y-auto rounded-lg">{children}</div>
+        </CollapsibleContent>
       )}
     </Collapsible>
   )
@@ -144,7 +150,6 @@ function ToolCard({
 
   return (
     <StepRow
-      icon={<WrenchIcon />}
       label={getToolLabel(toolName, isRunning)}
       summary={getToolSummary(toolData.input)}
       running={isRunning}

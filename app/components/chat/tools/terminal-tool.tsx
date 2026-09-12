@@ -18,19 +18,15 @@ export function TerminalTool({ toolData, className }: ToolBodyProps) {
       ? (parseToolResult(toolData.output) as TerminalResult | string | null)
       : null
   const command = String(args?.command ?? args?.code ?? "")
-
-  if (result == null) {
-    return (
-      <div className={className}>
-        <div className="text-muted-foreground text-xs">
-          {state === "output-error" ? "Command failed" : "Running…"}
-        </div>
-      </div>
-    )
-  }
-
-  const obj = typeof result === "string" ? { output: result } : result
-  const stderr = obj.error ? String(obj.error) : undefined
+  // Always render the card: while running it shows the command alone, so
+  // the box never flips size when output lands.
+  const obj =
+    result == null ? {} : typeof result === "string" ? { output: result } : result
+  const stderr = obj.error
+    ? String(obj.error)
+    : state === "output-error"
+      ? String(toolData.errorText ?? "Command failed")
+      : undefined
   const exitCode =
     typeof obj.exit_code === "number" ? obj.exit_code : stderr ? 1 : 0
 
@@ -42,7 +38,6 @@ export function TerminalTool({ toolData, className }: ToolBodyProps) {
         stdout={obj.output ?? ""}
         stderr={stderr}
         exitCode={exitCode}
-        maxCollapsedLines={12}
       />
     </div>
   )
