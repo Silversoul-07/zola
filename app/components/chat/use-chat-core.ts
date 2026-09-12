@@ -375,6 +375,8 @@ export function useChatCore({
             isAuthenticated,
             systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
             enableSearch,
+            incognito,
+            agentId,
             editCutoffTimestamp: cutoffIso, // Backend will delete messages from this timestamp
           },
           experimental_attachments:
@@ -469,6 +471,8 @@ export function useChatCore({
             model: selectedModel,
             isAuthenticated,
             systemPrompt: SYSTEM_PROMPT_DEFAULT,
+            incognito,
+            agentId,
           },
         }
 
@@ -513,11 +517,13 @@ export function useChatCore({
         model: selectedModel,
         isAuthenticated,
         systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
+        incognito,
+        agentId,
       },
     }
 
     reload(options)
-  }, [user, chatId, selectedModel, isAuthenticated, systemPrompt, reload])
+  }, [user, chatId, selectedModel, isAuthenticated, systemPrompt, reload, incognito, agentId])
 
   // Handle input change - now with access to the real setInput function!
   const { setDraftValue } = useChatDraft(chatId)
