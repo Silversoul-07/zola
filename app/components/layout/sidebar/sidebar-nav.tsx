@@ -24,7 +24,8 @@ const NAV_ITEMS = [
   { href: "/skills", label: "Skills", icon: ChatsCircleIcon },
   { href: "/connectors", label: "Connectors", icon: PlugsConnectedIcon },
   { href: "/scheduled", label: "Scheduled", icon: ClockCounterClockwiseIcon },
-  { href: "/projects", label: "Projects", icon: SquaresFourIcon },
+  // brainstorm: Projects hidden for now, see app/(cloud9)/projects/page.tsx
+  // { href: "/projects", label: "Projects", icon: SquaresFourIcon },
   { href: "/board", label: "Board", icon: KanbanIcon },
   { href: "/observe", label: "Observe", icon: ChartLineIcon },
 ]
