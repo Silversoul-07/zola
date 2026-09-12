@@ -2,6 +2,8 @@
 
 import { groupChatsByDate } from "@/app/components/history/utils"
 import { useBreakpoint } from "@/app/hooks/use-breakpoint"
+import { SettingsTrigger } from "@/app/components/layout/settings/settings-trigger"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Sidebar,
@@ -22,11 +24,9 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { Pin } from "lucide-react"
-import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useMemo } from "react"
 import { HistoryTrigger } from "../../history/history-trigger"
-import { UserMenu } from "../user-menu"
 import { SidebarList } from "./sidebar-list"
 import { SidebarNav } from "./sidebar-nav"
 
@@ -132,22 +132,36 @@ export function AppSidebar() {
         </ScrollArea>
       </SidebarContent>
       <SidebarFooter className="border-border/40 mb-2 flex-row items-center justify-between border-t p-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <UserMenu />
-          <span className="text-primary truncate text-sm font-medium group-data-[collapsible=icon]:hidden">
-            {user?.display_name}
-          </span>
-        </div>
-        <Link
-          href="/settings"
-          aria-label="Settings"
-          className={cn(
-            iconButtonClassName,
-            "group-data-[collapsible=icon]:hidden"
-          )}
-        >
-          <GearSixIcon size={20} />
-        </Link>
+        <SettingsTrigger
+          trigger={
+            <button
+              type="button"
+              className="flex min-w-0 items-center gap-2 rounded-lg text-left"
+            >
+              <Avatar className="size-6 shrink-0">
+                <AvatarImage src={user?.profile_image ?? undefined} />
+                <AvatarFallback>{user?.display_name?.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <span className="text-foreground truncate text-sm font-medium group-data-[collapsible=icon]:hidden">
+                {user?.display_name}
+              </span>
+            </button>
+          }
+        />
+        <SettingsTrigger
+          trigger={
+            <button
+              type="button"
+              aria-label="Settings"
+              className={cn(
+                iconButtonClassName,
+                "group-data-[collapsible=icon]:hidden"
+              )}
+            >
+              <GearSixIcon size={20} />
+            </button>
+          }
+        />
       </SidebarFooter>
     </Sidebar>
   )

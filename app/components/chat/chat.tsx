@@ -4,6 +4,7 @@ import { ChatInput } from "@/app/components/chat-input/chat-input"
 import { Conversation } from "@/app/components/chat/conversation"
 import { useModel } from "@/app/components/chat/use-model"
 import { useChatDraft } from "@/app/hooks/use-chat-draft"
+import { useIncognito } from "@/app/components/layout/incognito-provider"
 import { useChats } from "@/lib/chat-store/chats/provider"
 import { useMessages } from "@/lib/chat-store/messages/provider"
 import { useChatSession } from "@/lib/chat-store/session/provider"
@@ -65,7 +66,7 @@ export function Chat() {
 
   // State to pass between hooks
   const [hasDialogAuth, setHasDialogAuth] = useState(false)
-  const [incognito, setIncognito] = useState(false)
+  const { incognito } = useIncognito()
   const isAuthenticated = useMemo(() => !!user?.id, [user?.id])
   const systemPrompt = useMemo(
     () => user?.system_prompt || SYSTEM_PROMPT_DEFAULT,
@@ -175,8 +176,6 @@ export function Chat() {
       setEnableSearch,
       enableSearch,
       quotedText,
-      incognito,
-      setIncognito,
     }),
     [
       input,
@@ -198,7 +197,6 @@ export function Chat() {
       setEnableSearch,
       enableSearch,
       quotedText,
-      incognito,
     ]
   )
 

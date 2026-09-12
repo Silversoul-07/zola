@@ -29,7 +29,7 @@ type ChatRequest = {
   editCutoffTimestamp?: string
   /** When true, nothing about this turn is written to the database. */
   incognito?: boolean
-  /** Header AgentPicker selection. "none"/unset routes straight to the model. */
+  /** Header AgentPicker selection. Always a real agent id. */
   agentId?: string
 }
 
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
     // streamText entirely and stream its /v1/responses SSE straight through.
     // "hermes-agent" is sent through as-is: Hermes treats it as "use the
     // agent's own default", any other model id is a LiteLLM lane it also honours.
-    if (agentId && agentId !== "none") {
+    if (agentId) {
       const hermesRes = await hermesRequest({
         messages,
         model,

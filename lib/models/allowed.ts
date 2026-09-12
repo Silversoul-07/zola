@@ -16,7 +16,7 @@ export function filterAgentDefaultModel(
   selectedAgentId: string | undefined
 ): ModelConfig[] {
   const effectiveAgentId = getEffectiveAgentId(selectedAgentId)
-  const agentSelected = !!effectiveAgentId && effectiveAgentId !== "none"
+  const agentSelected = !!effectiveAgentId
   if (agentSelected) return models
   return models.filter((model) => model.id !== "hermes-agent")
 }

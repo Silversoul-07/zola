@@ -3,13 +3,12 @@
 import { Button } from "@/components/ui/button"
 import { DrawerClose } from "@/components/ui/drawer"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn, isDev } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import {
   CubeIcon,
   GearSixIcon,
   KeyIcon,
   PaintBrushIcon,
-  PlugsConnectedIcon,
   XIcon,
 } from "@phosphor-icons/react"
 import { useState } from "react"
@@ -17,18 +16,15 @@ import { ByokSection } from "./apikeys/byok-section"
 import { InteractionPreferences } from "./appearance/interaction-preferences"
 import { LayoutSettings } from "./appearance/layout-settings"
 import { ThemeSelection } from "./appearance/theme-selection"
-import { ConnectionsPlaceholder } from "./connections/connections-placeholder"
-import { DeveloperTools } from "./connections/developer-tools"
-import { OllamaSection } from "./connections/ollama-section"
-import { AccountManagement } from "./general/account-management"
-import { UserProfile } from "./general/user-profile"
+import { GeneralSection } from "./general/general-section"
 import { ModelsSettings } from "./models/models-settings"
+import { SecretsSection } from "./secrets/secrets-section"
 
 type SettingsContentProps = {
   isDrawer?: boolean
 }
 
-type TabType = "general" | "appearance" | "models" | "connections"
+type TabType = "general" | "appearance" | "models" | "secrets"
 
 export function SettingsContent({
   isDrawer = false,
@@ -81,13 +77,6 @@ export function SettingsContent({
                   <span>Appearance</span>
                 </TabsTrigger>
                 <TabsTrigger
-                  value="apikeys"
-                  className="flex shrink-0 items-center gap-2"
-                >
-                  <KeyIcon className="size-4" />
-                  <span>API Keys</span>
-                </TabsTrigger>
-                <TabsTrigger
                   value="models"
                   className="flex shrink-0 items-center gap-2"
                 >
@@ -95,19 +84,18 @@ export function SettingsContent({
                   <span>Models</span>
                 </TabsTrigger>
                 <TabsTrigger
-                  value="connections"
+                  value="secrets"
                   className="flex shrink-0 items-center gap-2"
                 >
-                  <PlugsConnectedIcon className="size-4" />
-                  <span>Connections</span>
+                  <KeyIcon className="size-4" />
+                  <span>Secrets</span>
                 </TabsTrigger>
               </TabsList>
             </div>
 
             {/* Mobile tabs content */}
             <TabsContent value="general" className="space-y-6 px-6">
-              <UserProfile />
-              <AccountManagement />
+              <GeneralSection />
             </TabsContent>
 
             <TabsContent value="appearance" className="space-y-6 px-6">
@@ -116,19 +104,13 @@ export function SettingsContent({
               <InteractionPreferences />
             </TabsContent>
 
-            <TabsContent value="apikeys" className="px-6">
+            <TabsContent value="models" className="space-y-6 px-6">
+              <ModelsSettings />
               <ByokSection />
             </TabsContent>
 
-            <TabsContent value="models" className="px-6">
-              <ModelsSettings />
-              {/* <ModelVisibilitySettings /> */}
-            </TabsContent>
-
-            <TabsContent value="connections" className="space-y-6 px-6">
-              {!isDev && <ConnectionsPlaceholder />}
-              {isDev && <OllamaSection />}
-              {isDev && <DeveloperTools />}
+            <TabsContent value="secrets" className="px-6">
+              <SecretsSection />
             </TabsContent>
           </div>
         ) : (
@@ -138,7 +120,7 @@ export function SettingsContent({
               <div className="flex w-full flex-col gap-1">
                 <TabsTrigger
                   value="general"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
+                  className="w-full justify-start rounded-lg px-3 py-2 text-left"
                 >
                   <div className="flex items-center gap-2">
                     <GearSixIcon className="size-4" />
@@ -148,7 +130,7 @@ export function SettingsContent({
 
                 <TabsTrigger
                   value="appearance"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
+                  className="w-full justify-start rounded-lg px-3 py-2 text-left"
                 >
                   <div className="flex items-center gap-2">
                     <PaintBrushIcon className="size-4" />
@@ -157,17 +139,8 @@ export function SettingsContent({
                 </TabsTrigger>
 
                 <TabsTrigger
-                  value="apikeys"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <KeyIcon className="size-4" />
-                    <span>API Keys</span>
-                  </div>
-                </TabsTrigger>
-                <TabsTrigger
                   value="models"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
+                  className="w-full justify-start rounded-lg px-3 py-2 text-left"
                 >
                   <div className="flex items-center gap-2">
                     <CubeIcon className="size-4" />
@@ -175,12 +148,12 @@ export function SettingsContent({
                   </div>
                 </TabsTrigger>
                 <TabsTrigger
-                  value="connections"
-                  className="w-full justify-start rounded-md px-3 py-2 text-left"
+                  value="secrets"
+                  className="w-full justify-start rounded-lg px-3 py-2 text-left"
                 >
                   <div className="flex items-center gap-2">
-                    <PlugsConnectedIcon className="size-4" />
-                    <span>Connections</span>
+                    <KeyIcon className="size-4" />
+                    <span>Secrets</span>
                   </div>
                 </TabsTrigger>
               </div>
@@ -189,8 +162,7 @@ export function SettingsContent({
             {/* Desktop tabs content */}
             <div className="flex-1 overflow-auto px-6 pt-4">
               <TabsContent value="general" className="mt-0 space-y-6">
-                <UserProfile />
-                <AccountManagement />
+                <GeneralSection />
               </TabsContent>
 
               <TabsContent value="appearance" className="mt-0 space-y-6">
@@ -199,19 +171,13 @@ export function SettingsContent({
                 <InteractionPreferences />
               </TabsContent>
 
-              <TabsContent value="apikeys" className="mt-0 space-y-6">
+              <TabsContent value="models" className="mt-0 space-y-6">
+                <ModelsSettings />
                 <ByokSection />
               </TabsContent>
 
-              <TabsContent value="models" className="mt-0 space-y-6">
-                <ModelsSettings />
-                {/* <ModelVisibilitySettings /> */}
-              </TabsContent>
-
-              <TabsContent value="connections" className="mt-0 space-y-6">
-                {!isDev && <ConnectionsPlaceholder />}
-                {isDev && <OllamaSection />}
-                {isDev && <DeveloperTools />}
+              <TabsContent value="secrets" className="mt-0 space-y-6">
+                <SecretsSection />
               </TabsContent>
             </div>
           </>

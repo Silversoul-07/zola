@@ -16,19 +16,23 @@ import { useState } from "react"
 import { SettingsContent } from "./settings-content"
 
 type SettingsTriggerProps = {
-  onOpenChange: (open: boolean) => void
+  onOpenChange?: (open: boolean) => void
+  trigger?: React.ReactNode
 }
 
-export function SettingsTrigger({ onOpenChange }: SettingsTriggerProps) {
+export function SettingsTrigger({
+  onOpenChange,
+  trigger: triggerProp,
+}: SettingsTriggerProps) {
   const [open, setOpen] = useState(false)
   const isMobile = useBreakpoint(768)
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
-    onOpenChange(isOpen)
+    onOpenChange?.(isOpen)
   }
 
-  const trigger = (
+  const trigger = triggerProp ?? (
     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
       <User className="size-4" />
       <span>Settings</span>

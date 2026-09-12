@@ -29,7 +29,7 @@ export function useModel({
 }: UseModelProps) {
   const { preferences } = useUserPreferences()
   const effectiveAgentId = getEffectiveAgentId(preferences.selectedAgentId)
-  const agentSelected = !!effectiveAgentId && effectiveAgentId !== "none"
+  const agentSelected = !!effectiveAgentId
 
   // Calculate the effective model based on priority:
   // chat model > first favorite model > default

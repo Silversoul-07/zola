@@ -24,20 +24,18 @@ export function ButtonIncognito({
           type="button"
           onClick={() => onToggle(!isSelected)}
           aria-pressed={isSelected}
+          aria-label="Private chat"
           className={cn(
-            "border-border flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors",
+            "pointer-events-auto inline-flex size-9 items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
             isSelected
-              ? "bg-accent text-foreground"
-              : "text-muted-foreground bg-transparent"
+              ? "text-sky-500 bg-sky-500/10"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
           )}
         >
           <EyeSlash className="size-4" />
-          {isSelected && <span>Incognito</span>}
         </button>
       </TooltipTrigger>
-      <TooltipContent>
-        {isSelected ? "Incognito: not saved" : "Turn on incognito"}
-      </TooltipContent>
+      <TooltipContent>Private chat: not saved</TooltipContent>
     </Tooltip>
   )
 }
