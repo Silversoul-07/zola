@@ -33,7 +33,7 @@ export function ToolInvocation({
   if (toolParts.length === 0) return null
 
   return (
-    <div className={cn("mb-4 flex flex-col", className)}>
+    <div className={cn("mb-4 flex w-full min-w-0 max-w-full flex-col", className)}>
       {toolParts.map((tool, i) => (
         <ToolCard
           key={tool.toolCallId ?? `${tool.type}-${i}`}

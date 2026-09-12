@@ -197,15 +197,16 @@ export function useChatCore({
     }
   }, [prompt])
 
-  // Reset messages when navigating from a chat to home
-  if (
-    prevChatIdRef.current !== null &&
-    chatId === null &&
-    messages.length > 0
-  ) {
-    setMessages([])
-  }
-  prevChatIdRef.current = chatId
+  // Reset messages when navigating from a chat to home (in an effect:
+  // calling setMessages during render triggers React's setState-in-render
+  // warning under useChat v5+).
+  useEffect(() => {
+    if (prevChatIdRef.current !== null && chatId === null && messages.length > 0) {
+      setMessages([])
+    }
+    prevChatIdRef.current = chatId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId])
 
   // Submit action. `overrideText`, when passed, sends that text instead of the
   // composer's `input` state — used by the canvas selection prompt so it can

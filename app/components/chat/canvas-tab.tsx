@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/app/components/workspace/workspace-provider"
-import { CopyIcon, DownloadIcon, EyeIcon, FileTextIcon, PencilIcon } from "lucide-react"
+import { CopyIcon, DownloadIcon, EyeIcon, FileTextIcon, PencilIcon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 const SAVE_DEBOUNCE_MS = 800
@@ -132,7 +132,10 @@ export function CanvasTab({
             onClick={() => navigator.clipboard.writeText(content)}
           />
           <ArtifactAction tooltip="Download .md" icon={DownloadIcon} onClick={download} />
-          <ArtifactClose onClick={onClose} />
+          <ArtifactClose onClick={onClose} className="w-auto gap-1 px-2" title="Close canvas">
+            <XIcon className="size-4" />
+            <span className="text-xs">Close</span>
+          </ArtifactClose>
         </ArtifactActions>
       </ArtifactHeader>
 

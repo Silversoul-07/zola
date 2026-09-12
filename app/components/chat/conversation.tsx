@@ -46,7 +46,7 @@ export function Conversation({
             scrollbarWidth: "none",
           }}
         >
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4">
+          <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col gap-8 px-4">
             {messages?.map((message, index) => {
               const isLast =
                 index === messages.length - 1 && status !== "submitted"
@@ -74,7 +74,7 @@ export function Conversation({
             {status === "submitted" &&
               messages.length > 0 &&
               messages[messages.length - 1].role === "user" && (
-                <div className="group min-h-scroll-anchor flex w-full flex-col items-start gap-2">
+                <div className="group min-h-scroll-anchor flex w-full min-w-0 flex-col items-start gap-2">
                   <Loader />
                 </div>
               )}
