@@ -19,10 +19,13 @@ export async function validateAndTrackUsage({
   userId,
   model,
   incognito,
+  agentId,
 }: ChatApiParams): Promise<boolean> {
   const provider = getProviderForModel(model)
 
-  if (provider !== "ollama") {
+  // Hermes (agent) and the LiteLLM proxy hold their own keys server-side.
+  const serverSideKey = provider === "ollama" || provider === "litellm" || (agentId && agentId !== "none")
+  if (!serverSideKey) {
     const userApiKey = await getUserKey(userId, provider as ProviderWithoutOllama)
     if (!userApiKey && !FREE_MODELS_IDS.includes(model)) {
       throw new Error(

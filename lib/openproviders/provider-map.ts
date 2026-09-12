@@ -127,6 +127,7 @@ const MODEL_PROVIDER_MAP: Record<string, Provider> = {
   // direct Mistral entry above; this overrides it so that id resolves to the
   // LiteLLM gateway instead, since the chat-box picker only ever shows the
   // LiteLLM catalogue entry for that id.
+  "hermes-agent": "litellm", // virtual "Agent default": only ever routed via Hermes
   "deepseek-v4-flash": "litellm",
   "deepseek-v4-pro": "litellm",
   "gemini-3.5-flash": "litellm",

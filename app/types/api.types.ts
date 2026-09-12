@@ -30,6 +30,7 @@ export interface ChatApiParams {
   model: string
   isAuthenticated: boolean
   incognito?: boolean
+  agentId?: string
 }
 
 export interface LogUserMessageParams {

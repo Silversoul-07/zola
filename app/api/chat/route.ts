@@ -67,6 +67,7 @@ export async function POST(req: Request) {
       model,
       isAuthenticated: true,
       incognito,
+      agentId,
     })
 
     if (shouldPersist) {
