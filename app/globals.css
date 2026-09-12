@@ -166,3 +166,33 @@ code {
 [data-sonner-toaster] > li {
   width: 100%;
 }
+
+/* Milkdown Crepe (canvas editor): its frame theme sets the --crepe-color-* vars
+   on .milkdown itself, which shadows anything set on a parent, so the app's
+   tokens have to be applied at the same selector. */
+.canvas-editor .milkdown {
+  --crepe-color-background: transparent;
+  --crepe-color-on-background: var(--foreground);
+  --crepe-color-surface: var(--muted);
+  --crepe-color-surface-low: var(--muted);
+  --crepe-color-on-surface: var(--foreground);
+  --crepe-color-on-surface-variant: var(--muted-foreground);
+  --crepe-color-outline: var(--border);
+  --crepe-color-primary: var(--foreground);
+  --crepe-color-secondary: var(--muted);
+  --crepe-color-on-secondary: var(--foreground);
+  --crepe-color-inverse: var(--foreground);
+  --crepe-color-on-inverse: var(--background);
+  --crepe-color-hover: var(--accent);
+  --crepe-color-selected: var(--accent);
+  --crepe-color-inline-area: var(--muted);
+  --crepe-font-title: inherit;
+  --crepe-font-default: inherit;
+  background: transparent;
+  color: var(--foreground);
+}
+.canvas-editor .milkdown .ProseMirror {
+  padding: 1rem 1.5rem 4rem;
+  max-width: none;
+}
+

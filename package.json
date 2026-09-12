@@ -20,6 +20,8 @@
     "@ai-sdk/perplexity": "^4.0.43",
     "@ai-sdk/react": "^4.0.102",
     "@ai-sdk/xai": "^4.0.58",
+    "@milkdown/crepe": "^7.22.1",
+    "@milkdown/kit": "^7.22.1",
     "@openrouter/ai-sdk-provider": "^3.0.0",
     "@phosphor-icons/react": "^2.1.7",
     "@radix-ui/react-alert-dialog": "^1.1.13",

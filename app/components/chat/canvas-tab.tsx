@@ -8,13 +8,12 @@ import {
   ArtifactContent,
   ArtifactHeader,
 } from "@/components/ai-elements/artifact"
-import { MessageResponse } from "@/components/ai-elements/message"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { useWorkspace } from "@/app/components/workspace/workspace-provider"
-import { CopyIcon, DownloadIcon, EyeIcon, FileTextIcon, PencilIcon, XIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { CopyIcon, DownloadIcon, FileTextIcon } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { CanvasEditor } from "./canvas-editor"
 
 const SAVE_DEBOUNCE_MS = 800
 
@@ -37,11 +36,10 @@ export function CanvasTab({
   const { updateCanvasTitle, sendCanvasInstruction } = useWorkspace()
   const [title, setTitle] = useState(initialTitle)
   const [content, setContent] = useState(initialContent)
-  // Rendered by default; the pencil switches to the raw editor.
-  const [preview, setPreview] = useState(initialContent.trim().length > 0)
   const [selection, setSelection] = useState<Selection | null>(null)
   const [instruction, setInstruction] = useState("")
-  const bodyRef = useRef<HTMLDivElement>(null)
+  const paneRef = useRef<HTMLDivElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Re-sync from the agent's pushed content; user edits never bump contentVersion,
@@ -68,28 +66,42 @@ export function CanvasTab({
     save({ title: value })
   }
 
-  const handleContentChange = (value: string) => {
-    setContent(value)
-    save({ content: value })
+  const handleContentChange = (markdown: string) => {
+    setContent(markdown)
+    save({ content: markdown })
   }
 
-  const handleSelect = () => {
-    const el = bodyRef.current?.querySelector("textarea")
-    if (!el) return
-    const { selectionStart, selectionEnd } = el
-    if (selectionStart === selectionEnd) {
+  // Only reacts to selections anchored inside the editor container, so
+  // clicking into the popover's own input below never clobbers it.
+  const updateSelection = useCallback(() => {
+    const editorEl = editorRef.current
+    const paneEl = paneRef.current
+    if (!editorEl || !paneEl) return
+    const sel = window.getSelection()
+    const anchorNode = sel?.anchorNode ?? null
+    if (!anchorNode || !editorEl.contains(anchorNode)) return
+    if (!sel || sel.isCollapsed) {
       setSelection(null)
       return
     }
-    const text = el.value.slice(selectionStart, selectionEnd)
-    const rect = el.getBoundingClientRect()
-    const containerRect = bodyRef.current!.getBoundingClientRect()
+    const text = sel.toString().trim()
+    if (!text) {
+      setSelection(null)
+      return
+    }
+    const rect = sel.getRangeAt(0).getBoundingClientRect()
+    const paneRect = paneEl.getBoundingClientRect()
     setSelection({
       text,
-      top: rect.top - containerRect.top + 24,
-      left: Math.min(rect.left - containerRect.left + 24, containerRect.width - 260),
+      top: rect.bottom - paneRect.top + 8,
+      left: Math.min(Math.max(rect.left - paneRect.left, 0), paneRect.width - 260),
     })
-  }
+  }, [])
+
+  useEffect(() => {
+    document.addEventListener("selectionchange", updateSelection)
+    return () => document.removeEventListener("selectionchange", updateSelection)
+  }, [updateSelection])
 
   const submitInstruction = () => {
     if (!selection || !instruction.trim()) return
@@ -112,7 +124,7 @@ export function CanvasTab({
 
   return (
     <Artifact className="h-full flex-1 rounded-none border-0">
-      <ArtifactHeader>
+      <ArtifactHeader className="border-0 bg-transparent">
         <div className="flex min-w-0 items-center gap-2">
           <FileTextIcon className="text-muted-foreground size-4 shrink-0" />
           <Input
@@ -123,39 +135,28 @@ export function CanvasTab({
         </div>
         <ArtifactActions>
           <ArtifactAction
-            tooltip={preview ? "Edit" : "Preview"}
-            icon={preview ? PencilIcon : EyeIcon}
-            onClick={() => setPreview((p) => !p)}
-          />
-          <ArtifactAction
             tooltip="Copy"
             icon={CopyIcon}
             onClick={() => navigator.clipboard.writeText(content)}
           />
           <ArtifactAction tooltip="Download .md" icon={DownloadIcon} onClick={download} />
-          <ArtifactClose onClick={onClose} className="w-auto gap-1 px-2" title="Close canvas">
-            <XIcon className="size-4" />
-            <span className="text-xs">Close</span>
-          </ArtifactClose>
+          <ArtifactClose onClick={onClose} title="Close canvas" />
         </ArtifactActions>
       </ArtifactHeader>
 
       <ArtifactContent className="flex flex-1 flex-col overflow-hidden p-0">
-        <div ref={bodyRef} className="relative flex flex-1 flex-col overflow-auto">
-          {preview ? (
-            <div className="prose dark:prose-invert size-full max-w-none overflow-auto p-4">
-              <MessageResponse>{content}</MessageResponse>
-            </div>
-          ) : (
-            <Textarea
-              value={content}
-              onChange={(e) => handleContentChange(e.target.value)}
-              onSelect={handleSelect}
-              onBlur={() => setTimeout(() => setSelection(null), 150)}
-              placeholder="Write, or ask the agent to write, a document…"
-              className="size-full flex-1 resize-none rounded-none border-none font-mono text-sm shadow-none focus-visible:ring-0"
+        <div ref={paneRef} className="relative flex flex-1 flex-col overflow-hidden">
+          <div
+            ref={editorRef}
+            onMouseUp={updateSelection}
+            className="prose dark:prose-invert max-w-none flex-1 overflow-auto p-4"
+          >
+            <CanvasEditor
+              content={content}
+              contentVersion={contentVersion}
+              onChange={handleContentChange}
             />
-          )}
+          </div>
 
           {selection && (
             <div

@@ -57,6 +57,9 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         const fresh = await getMessagesFromDb(chatId)
         setMessages(fresh)
         cacheMessages(chatId, fresh)
+        // A user message with no reply yet means a run is still going on the
+        // server (we left the page mid-stream); poll until the reply lands.
+        if (fresh.at(-1)?.role === "user") poll()
       } catch (error) {
         console.error("Failed to fetch messages:", error)
       } finally {
@@ -64,7 +67,29 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    let tries = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const poll = () => {
+      if (cancelled || tries++ > 60) return
+      timer = setTimeout(async () => {
+        try {
+          const fresh = await getMessagesFromDb(chatId)
+          if (cancelled) return
+          if (fresh.at(-1)?.role === "user") return poll()
+          setMessages(fresh)
+          cacheMessages(chatId, fresh)
+        } catch {
+          poll()
+        }
+      }, 3000)
+    }
+
+    let cancelled = false
     load()
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
   }, [chatId])
 
   const refresh = async () => {

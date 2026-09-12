@@ -107,6 +107,12 @@ async function persistAssistantMessage({
   }
 }
 
+// Drain a tee'd copy of the SSE stream server-side so the run (and its
+// onFinish persistence) completes even when the browser navigates away
+// mid-reply; the tee's other branch is what the client cancels.
+const drain = ({ stream }: { stream: ReadableStream<string> }) =>
+  stream.pipeTo(new WritableStream()).catch(() => {})
+
 export async function POST(req: Request) {
   try {
     const user = await getCurrentUser()
@@ -251,7 +257,8 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
         model,
         agent: agentMode,
         system: canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined),
-        variant: effort,
+        // opencode.json declares low/medium/high only; xhigh is Hermes-only.
+        variant: effort === "xhigh" ? "high" : effort,
       })
 
       const stream = opencodeEventsToUIMessageStream(eventStream, {
@@ -267,7 +274,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
           }),
       })
 
-      return createUIMessageStreamResponse({ stream })
+      return createUIMessageStreamResponse({ stream, consumeSseStream: drain })
     }
 
     // Hermes Agent runs its own model + tools server-side on our VM; bypass
@@ -298,7 +305,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
         }
       )
 
-      return createUIMessageStreamResponse({ stream })
+      return createUIMessageStreamResponse({ stream, consumeSseStream: drain })
     }
 
     const { getEffectiveApiKey } = await import("@/lib/user-keys")
@@ -338,7 +345,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
       },
     })
 
-    return createUIMessageStreamResponse({ stream })
+    return createUIMessageStreamResponse({ stream, consumeSseStream: drain })
   } catch (err: unknown) {
     console.error("Error in /api/chat:", err)
     const error = err as {

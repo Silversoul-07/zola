@@ -202,10 +202,10 @@ export function ChatInput({
             placeholder={`Ask ${APP_NAME}`}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            className="min-h-[40px] pt-2.5 pl-4 text-base leading-[1.3] sm:text-base md:text-base"
+            className="min-h-[36px] pt-2 pl-3 text-[15px] leading-[1.3] sm:text-[15px] md:text-[15px]"
           />
-          <PromptInputActions className="mt-1 w-full justify-between p-1.5">
-            <div className="flex gap-2">
+          <PromptInputActions className="w-full justify-between p-1">
+            <div className="flex items-center gap-1">
               <ButtonFileUpload
                 onFileUpload={onFileUpload}
                 isUserAuthenticated={isUserAuthenticated}
@@ -223,6 +223,7 @@ export function ChatInput({
                   onChange={onReasoningEffortChange}
                 />
               ) : null}
+              <ContextMeter usage={turnUsage} modelId={selectedModel} />
               {showAgentMode && onAgentModeChange ? (
                 <AgentModeSelect
                   value={agentMode || "build"}
@@ -238,7 +239,6 @@ export function ChatInput({
               ) : null}
             </div>
             <div className="flex items-center gap-1">
-            <ContextMeter usage={turnUsage} modelId={selectedModel} />
             <PromptInputAction
               tooltip={status === "streaming" ? "Stop" : "Send"}
             >
