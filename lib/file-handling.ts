@@ -79,7 +79,10 @@ export async function processFiles(
       continue
     }
 
-    const url = URL.createObjectURL(file)
+    // ponytail: inline data URL so the model backend (Hermes) can read it without
+    // object storage. Ceiling: attachments live inside the message row; add a
+    // /api/files store when uploads outgrow a few MB.
+    const url = await fileToDataUrl(file)
     attachments.push(createAttachment(file, url))
   }
 
@@ -96,4 +99,13 @@ export class FileUploadLimitError extends Error {
 
 export async function checkFileUploadLimit(_userId: string) {
   return 0
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
 }
