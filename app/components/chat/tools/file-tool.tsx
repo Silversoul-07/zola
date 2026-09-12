@@ -5,10 +5,44 @@ import {
   CodeBlockCode,
   CodeBlockGroup,
 } from "@/components/prompt-kit/code-block"
+import { useWorkspace } from "@/app/components/workspace/workspace-provider"
 import { FileCode, MagnifyingGlass } from "@phosphor-icons/react"
 import type { ReactNode } from "react"
 import { getToolLabel } from "./tool-labels"
 import { CodeOutput, parseToolResult, ToolShell, type ToolBodyProps } from "./tool-shell"
+
+// First `+` line in a diff body, 1-based, so "Open file" can land the viewer near the change.
+function firstChangedLine(body: string): number | undefined {
+  const lines = body.split("\n")
+  const idx = lines.findIndex((l) => l.startsWith("+") && !l.startsWith("+++"))
+  return idx >= 0 ? idx + 1 : undefined
+}
+
+// The path itself becomes a click target that opens the file in the right-hand workspace pane.
+function OpenFileButton({
+  path,
+  line,
+  className,
+}: {
+  path: string
+  line?: number
+  className?: string
+}) {
+  const { openFile } = useWorkspace()
+  return (
+    <button
+      type="button"
+      className={className}
+      title={`Open ${path}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        openFile(path, { line })
+      }}
+    >
+      {path}
+    </button>
+  )
+}
 
 const EXT_LANG: Record<string, string> = {
   ts: "typescript",
@@ -83,7 +117,11 @@ function DiffView({ file }: { file: DiffFile }) {
     <CodeBlock className="rounded-md">
       {file.path && (
         <CodeBlockGroup className="border-border text-muted-foreground border-b px-3 py-1.5 font-mono text-xs">
-          <span className="truncate">{file.path}</span>
+          <OpenFileButton
+            path={file.path}
+            line={firstChangedLine(file.body)}
+            className="hover:text-foreground min-w-0 flex-1 truncate text-left"
+          />
           <span className="flex shrink-0 gap-2">
             <span className="text-green-600 dark:text-green-400">
               +{file.added}
@@ -120,7 +158,17 @@ export function FileTool({ toolData, defaultOpen, className }: ToolBodyProps) {
 
   let body: ReactNode = null
   if (toolName === "write_file") {
-    body = <CodeOutput code={(args?.content as string) ?? ""} language={languageFromPath(path)} />
+    body = (
+      <div className="space-y-1">
+        {path && (
+          <OpenFileButton
+            path={path}
+            className="text-muted-foreground hover:text-foreground block truncate text-left font-mono text-xs"
+          />
+        )}
+        <CodeOutput code={(args?.content as string) ?? ""} language={languageFromPath(path)} />
+      </div>
+    )
   } else if (toolName === "patch") {
     const diff = (args?.diff ?? args?.patch ?? resultObj.diff ?? "") as string
     const files = diff ? parseUnifiedDiff(diff) : []
@@ -171,7 +219,15 @@ export function FileTool({ toolData, defaultOpen, className }: ToolBodyProps) {
       resultObj.output ??
       (typeof result === "string" ? result : "")) as string
     body = content ? (
-      <CodeOutput code={content} language={languageFromPath(path)} />
+      <div className="space-y-1">
+        {path && (
+          <OpenFileButton
+            path={path}
+            className="text-muted-foreground hover:text-foreground block truncate text-left font-mono text-xs"
+          />
+        )}
+        <CodeOutput code={content} language={languageFromPath(path)} />
+      </div>
     ) : (
       <div className="text-muted-foreground text-xs">
         {isRunning ? "Reading…" : "No content"}
