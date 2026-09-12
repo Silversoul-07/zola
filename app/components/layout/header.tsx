@@ -14,7 +14,13 @@ export function Header({ hasSidebar }: { hasSidebar: boolean }) {
   return (
     <header className="h-app-header pointer-events-none fixed top-0 right-0 left-0 z-50">
       <div className="relative mx-auto flex h-full items-center justify-between bg-transparent px-4 sm:px-6 lg:bg-transparent lg:px-8">
-        <div className="pointer-events-auto flex items-center gap-2">
+        <div
+          className={cn(
+            "pointer-events-auto flex items-center gap-2 transition-[margin]",
+            // keep the left group clear of the open desktop sidebar
+            hasSidebar && open && "md:ml-[var(--sidebar-width)]"
+          )}
+        >
           <HeaderSidebarTrigger
             className={cn(hasSidebar && open && "md:hidden")}
           />
