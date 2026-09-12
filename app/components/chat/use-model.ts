@@ -1,6 +1,6 @@
 import { toast } from "@/components/ui/toast"
 import { Chats } from "@/lib/chat-store/types"
-import { getEffectiveAgentId, MODEL_DEFAULT } from "@/lib/config"
+import { getEffectiveAgentId, ALLOWED_MODEL_IDS, MODEL_DEFAULT } from "@/lib/config"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import type { UserProfile } from "@/lib/user/types"
 import { useCallback, useState } from "react"
@@ -36,8 +36,12 @@ export function useModel({
   // "hermes-agent" (Agent default) only makes sense while an agent is
   // selected; fall back to the default model if the agent gets deselected.
   const getEffectiveModel = useCallback(() => {
-    const firstFavoriteModel = user?.favorite_models?.[0]
-    const model = currentChat?.model || firstFavoriteModel || MODEL_DEFAULT
+    const known = (id?: string | null) => !!id && ALLOWED_MODEL_IDS.includes(id)
+    const firstFavoriteModel = user?.favorite_models?.find(known)
+    const model =
+      (known(currentChat?.model) ? currentChat?.model : undefined) ||
+      firstFavoriteModel ||
+      MODEL_DEFAULT
     return model === "hermes-agent" && !agentSelected ? MODEL_DEFAULT : model
   }, [currentChat?.model, user?.favorite_models, agentSelected])
 

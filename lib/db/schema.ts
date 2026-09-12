@@ -88,7 +88,7 @@ export const userPreferences = pgTable("user_preferences", {
     .primaryKey()
     .references(() => users.id, { onDelete: "cascade" }),
   layout: text("layout").default("sidebar"),
-  promptSuggestions: boolean("prompt_suggestions").default(true),
+  promptSuggestions: boolean("prompt_suggestions").default(false),
   showToolInvocations: boolean("show_tool_invocations").default(true),
   showConversationPreviews: boolean("show_conversation_previews").default(
     true

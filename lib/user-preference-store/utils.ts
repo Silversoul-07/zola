@@ -12,7 +12,7 @@ export type UserPreferences = {
 
 export const defaultPreferences: UserPreferences = {
   layout: "sidebar",
-  promptSuggestions: true,
+  promptSuggestions: false,
   showToolInvocations: true,
   showConversationPreviews: true,
   multiModelEnabled: false,

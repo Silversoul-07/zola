@@ -1,5 +1,7 @@
 "use client"
 
+import { APP_NAME } from "@/lib/config"
+
 import { ModelSelector } from "@/components/common/model-selector/base"
 import {
   PromptInput,
@@ -186,7 +188,7 @@ export function ChatInput({
           <FileList files={files} onFileRemove={onFileRemove} />
           <PromptInputTextarea
             ref={textareaRef}
-            placeholder="Ask Zola"
+            placeholder={`Ask ${APP_NAME}`}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             className="min-h-[44px] pt-3 pl-4 text-base leading-[1.3] sm:text-base md:text-base"

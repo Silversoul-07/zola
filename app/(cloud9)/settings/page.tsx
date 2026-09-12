@@ -1,63 +1,33 @@
-"use client"
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useEffect, useState } from "react"
+import { AGENTS, APP_NAME, MODEL_DEFAULT } from "@/lib/config"
 
-// ponytail: stored in localStorage, not the shared user-preferences store, to avoid touching a
-// file other in-flight branches may also be editing. Promote to the real preferences store once
-// that schema stabilizes.
-const STORAGE_KEY = "cloud9-general-settings"
-
-type GeneralSettings = { appName: string; defaultAgent: string; defaultModel: string }
-
-const DEFAULTS: GeneralSettings = {
-  appName: "Zola",
-  defaultAgent: "hermes",
-  defaultModel: "hermes:hermes-agent",
-}
-
+// Read-only: these values come from the environment (see .env.example), not from a form.
 export default function GeneralSettingsPage() {
-  const [settings, setSettings] = useState<GeneralSettings>(DEFAULTS)
-
-  useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) setSettings({ ...DEFAULTS, ...JSON.parse(raw) })
-  }, [])
-
-  const update = (patch: Partial<GeneralSettings>) => {
-    const next = { ...settings, ...patch }
-    setSettings(next)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  }
-
+  const rows: Array<[string, string]> = [
+    ["App name", APP_NAME],
+    ["Agents", AGENTS.map((a) => a.name).join(", ") || "none"],
+    ["Default model", MODEL_DEFAULT],
+    ["Hermes API", process.env.HERMES_API_URL || "not set"],
+    ["Hermes dashboard", process.env.HERMES_DASHBOARD_URL || "not set"],
+    ["LiteLLM", process.env.LITELLM_URL || "not set"],
+  ]
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">General</CardTitle>
       </CardHeader>
-      <CardContent className="max-w-sm space-y-4">
-        <div className="space-y-1">
-          <Label htmlFor="app-name">App name</Label>
-          <Input id="app-name" value={settings.appName} onChange={(e) => update({ appName: e.target.value })} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="default-agent">Default agent</Label>
-          <Input
-            id="default-agent"
-            value={settings.defaultAgent}
-            onChange={(e) => update({ defaultAgent: e.target.value })}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="default-model">Default model</Label>
-          <Input
-            id="default-model"
-            value={settings.defaultModel}
-            onChange={(e) => update({ defaultModel: e.target.value })}
-          />
-        </div>
+      <CardContent>
+        <dl className="divide-border divide-y text-sm">
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex items-center justify-between gap-6 py-2.5">
+              <dt className="text-muted-foreground">{k}</dt>
+              <dd className="truncate font-mono text-xs">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-muted-foreground mt-4 text-xs">
+          Set via environment variables. Edit <code>.env</code> and restart to change.
+        </p>
       </CardContent>
     </Card>
   )

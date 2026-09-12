@@ -9,7 +9,7 @@ function readAgents(): AgentConfig[] {
     if (!raw) throw new Error("unset")
     return JSON.parse(raw)
   } catch {
-    return [{ id: "hermes", name: "Hermes Agent", model: "hermes:hermes-agent" }]
+    return [{ id: "hermes", name: "Hermes Agent", model: "hermes-agent" }]
   }
 }
 
