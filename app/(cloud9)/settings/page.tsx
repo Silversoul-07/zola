@@ -1,3 +1,4 @@
+import { GeneralSection } from "@/app/components/layout/settings/general/general-section"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AGENTS, APP_NAME, MODEL_DEFAULT } from "@/lib/config"
 
@@ -17,17 +18,7 @@ export default function GeneralSettingsPage() {
         <CardTitle className="text-base">General</CardTitle>
       </CardHeader>
       <CardContent>
-        <dl className="divide-border divide-y text-sm">
-          {rows.map(([k, v]) => (
-            <div key={k} className="flex items-center justify-between gap-6 py-2.5">
-              <dt className="text-muted-foreground">{k}</dt>
-              <dd className="truncate font-mono text-xs">{v}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="text-muted-foreground mt-4 text-xs">
-          Set via environment variables. Edit <code>.env</code> and restart to change.
-        </p>
+        <GeneralSection rows={rows} />
       </CardContent>
     </Card>
   )

@@ -24,7 +24,7 @@ export async function validateAndTrackUsage({
   const provider = getProviderForModel(model)
 
   // Hermes (agent) and the LiteLLM proxy hold their own keys server-side.
-  const serverSideKey = provider === "ollama" || provider === "litellm" || (agentId && agentId !== "none")
+  const serverSideKey = provider === "ollama" || provider === "litellm" || !!agentId
   if (!serverSideKey) {
     const userApiKey = await getUserKey(userId, provider as ProviderWithoutOllama)
     if (!userApiKey && !FREE_MODELS_IDS.includes(model)) {

@@ -45,7 +45,7 @@ export function SidebarNav() {
               asChild
               isActive={isActive}
               tooltip={item.label}
-              className="h-10 text-sm"
+              className="relative h-9 rounded-lg text-sm data-[active=true]:bg-transparent data-[active=true]:before:absolute data-[active=true]:before:inset-y-1 data-[active=true]:before:left-0 data-[active=true]:before:w-0.5 data-[active=true]:before:rounded-full data-[active=true]:before:bg-sky-500"
             >
               <Link href={item.href} prefetch>
                 <item.icon size={18} />

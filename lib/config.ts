@@ -56,8 +56,9 @@ function parseAgents(): AgentConfig[] {
 
 export const AGENTS: AgentConfig[] = parseAgents()
 
-// Resolves the header AgentPicker's effective selection: an explicit choice
-// (including "none"), or the default (first agent) when nothing was chosen yet.
+// Resolves the header AgentPicker's effective selection: an explicit choice,
+// or the default (first agent) when nothing was chosen yet. The app always
+// routes through an agent, so this always returns a real agent id.
 export function getEffectiveAgentId(
   selectedAgentId: string | undefined
 ): string | undefined {
