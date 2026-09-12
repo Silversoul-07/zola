@@ -52,3 +52,6 @@ bun.lockb
 bun.lock
 
 /.cursor
+
+# local dev
+.dev.log
