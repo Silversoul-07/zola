@@ -217,7 +217,7 @@ export function ChatPreviewPanel({
 
   return (
     <div
-      className="bg-background col-span-3 border-l"
+      className="bg-background col-span-2 border-l"
       onMouseEnter={() => onHover?.(true)}
       onMouseLeave={() => onHover?.(false)}
       key={chatId}

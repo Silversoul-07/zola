@@ -159,7 +159,7 @@ export function ModelSelector({
                 size="sm"
                 variant="secondary"
                 className={cn(
-                  "border-border dark:bg-secondary text-accent-foreground h-9 w-auto border bg-transparent",
+                  "border-border dark:bg-secondary text-accent-foreground h-8 w-auto border bg-transparent",
                   className
                 )}
                 type="button"

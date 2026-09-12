@@ -193,9 +193,9 @@ export function ChatInput({
             placeholder={`Ask ${APP_NAME}`}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            className="min-h-[44px] pt-3 pl-4 text-base leading-[1.3] sm:text-base md:text-base"
+            className="min-h-[40px] pt-2.5 pl-4 text-base leading-[1.3] sm:text-base md:text-base"
           />
-          <PromptInputActions className="mt-3 w-full justify-between p-2">
+          <PromptInputActions className="mt-1 w-full justify-between p-1.5">
             <div className="flex gap-2">
               <ButtonFileUpload
                 onFileUpload={onFileUpload}
@@ -227,7 +227,7 @@ export function ChatInput({
             >
               <Button
                 size="sm"
-                className="size-9 rounded-full transition-all duration-300 ease-out"
+                className="size-8 rounded-full transition-all duration-300 ease-out"
                 disabled={!value || isSubmitting || isOnlyWhitespace(value)}
                 type="button"
                 onClick={handleSend}

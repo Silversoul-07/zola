@@ -34,7 +34,7 @@ export function AgentModeSelect({
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
         size="sm"
-        className="h-9 w-auto gap-1 rounded-full border-none bg-transparent px-3 text-sm shadow-none"
+        className="h-8 w-auto gap-1 rounded-full border-none bg-transparent px-3 text-sm shadow-none"
         title="OpenCode agent mode"
       >
         <SelectValue />

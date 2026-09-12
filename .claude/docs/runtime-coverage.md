@@ -35,6 +35,8 @@ Support the maximum of both runtimes' features that their HTTP APIs expose, with
 
 ### Hermes items
 
+- Reasoning stream: `/v1/responses` never surfaces model reasoning (upstream `api_server_openai_routes.py` wires `_on_tool_progress` as a no-op, verified 2026-09-12 at main and at the pinned commit). Hermes does stream it on `POST /api/sessions/{session_id}/chat/stream` as `tool.progress` events with `tool_name: "_thinking"` and a `delta`. v2: move the Hermes mapper to that endpoint and map `_thinking` deltas to `reasoning-delta`; until then the chat shows only the loader while Hermes thinks.
+
 - Slash commands: Settings > Commands tab (user- or agent-created). Execution path to decide with upstream: either the gateway `slash.exec` JSON-RPC, or plain prompt expansion on the client. Prompt expansion needs no upstream change and is the v2 default.
 - Profiles: runtime picker lists one entry per Hermes profile when `gateway.multiplex_profiles` is enabled; each maps to its own API port.
 - Skills: create and edit through the dashboard API when it exposes write endpoints; view stays as is.

@@ -24,19 +24,20 @@ export function ButtonIncognito({
         <Button
           type="button"
           variant="ghost"
+          size="icon"
           onClick={() => onToggle(!isSelected)}
           aria-pressed={isSelected}
           className={cn(
-            "pointer-events-auto gap-1.5 rounded-lg",
+            "pointer-events-auto rounded-lg",
             isSelected &&
               "text-sky-500 bg-sky-500/10 hover:bg-sky-500/10 hover:text-sky-500"
           )}
         >
-          <EyeSlash className="size-4" />
-          {isSelected ? "Private on" : "Private"}
+          <EyeSlash className="size-5" />
+          <span className="sr-only">Private chat</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Private chat: not saved</TooltipContent>
+      <TooltipContent>{isSelected ? "Private on: not saved" : "Private chat"}</TooltipContent>
     </Tooltip>
   )
 }

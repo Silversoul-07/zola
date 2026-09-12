@@ -14,7 +14,6 @@ import {
 import { useState } from "react"
 import { ByokSection } from "./apikeys/byok-section"
 import { InteractionPreferences } from "./appearance/interaction-preferences"
-import { LayoutSettings } from "./appearance/layout-settings"
 import { ThemeSelection } from "./appearance/theme-selection"
 import { GeneralSection } from "./general/general-section"
 import { ModelsSettings } from "./models/models-settings"
@@ -100,7 +99,6 @@ export function SettingsContent({
 
             <TabsContent value="appearance" className="space-y-6 px-6">
               <ThemeSelection />
-              <LayoutSettings />
               <InteractionPreferences />
             </TabsContent>
 
@@ -167,7 +165,6 @@ export function SettingsContent({
 
               <TabsContent value="appearance" className="mt-0 space-y-6">
                 <ThemeSelection />
-                <LayoutSettings />
                 <InteractionPreferences />
               </TabsContent>
 

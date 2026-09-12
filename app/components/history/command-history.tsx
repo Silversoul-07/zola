@@ -571,7 +571,7 @@ export function CommandHistory({
         open={isOpen}
         title="Chat History"
         description="Search through your past conversations"
-        className="sm:max-w-2xl"
+        className="top-[10%] translate-y-0 sm:max-w-3xl"
       >
         <CommandInput
           placeholder="Search history..."
@@ -582,12 +582,12 @@ export function CommandHistory({
         <div className="grid grid-cols-5">
           <div
             className={cn(
-              preferences.showConversationPreviews ? "col-span-2" : "col-span-5"
+              preferences.showConversationPreviews ? "col-span-3" : "col-span-5"
             )}
           >
             <CommandList
               className={cn(
-                "h-[60vh] flex-1 overflow-y-auto [&>[cmdk-list-sizer]]:space-y-6 [&>[cmdk-list-sizer]]:py-2"
+                "h-[70vh] max-h-[640px] flex-1 overflow-y-auto [&>[cmdk-list-sizer]]:space-y-6 [&>[cmdk-list-sizer]]:py-2"
               )}
             >
               {filteredChat.length === 0 && (

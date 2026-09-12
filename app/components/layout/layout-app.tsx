@@ -5,11 +5,9 @@ import { IncognitoProvider } from "@/app/components/layout/incognito-provider"
 import { AppSidebar } from "@/app/components/layout/sidebar/app-sidebar"
 import { WorkspacePane } from "@/app/components/workspace/workspace-pane"
 import { WorkspaceProvider } from "@/app/components/workspace/workspace-provider"
-import { useUserPreferences } from "@/lib/user-preference-store/provider"
 
 export function LayoutApp({ children }: { children: React.ReactNode }) {
-  const { preferences } = useUserPreferences()
-  const hasSidebar = preferences.layout === "sidebar"
+  const hasSidebar = true
 
   return (
     <IncognitoProvider>
