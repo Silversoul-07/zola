@@ -2,9 +2,12 @@
 
 import { Globe } from "@phosphor-icons/react"
 import type { ReactNode } from "react"
+import { getToolLabel } from "./tool-labels"
 import { CodeOutput, parseToolResult, ToolShell, type ToolBodyProps } from "./tool-shell"
 
 type LinkItem = { title?: string; url?: string; snippet?: string }
+
+const MAX_SOURCES = 5
 
 function hostname(url?: string) {
   if (!url) return ""
@@ -20,7 +23,7 @@ export function WebTool({ toolData, defaultOpen, className }: ToolBodyProps) {
   const { toolInvocation } = toolData
   const { state, args, toolName } = toolInvocation
   const isRunning = state !== "result"
-  const title = (args?.query ?? args?.url ?? toolName) as string
+  const detail = (args?.query ?? args?.url) as string | undefined
   const result = state === "result" ? parseToolResult(toolInvocation.result) : null
   const resultObj = (result && typeof result === "object" ? result : {}) as Record<
     string,
@@ -47,9 +50,11 @@ export function WebTool({ toolData, defaultOpen, className }: ToolBodyProps) {
       </div>
     )
   } else if (items.length > 0) {
+    const shown = items.slice(0, MAX_SOURCES)
+    const remaining = items.length - shown.length
     body = (
       <div className="space-y-2">
-        {items.slice(0, 5).map((item, i) => (
+        {shown.map((item, i) => (
           <a
             key={i}
             href={item.url}
@@ -68,6 +73,11 @@ export function WebTool({ toolData, defaultOpen, className }: ToolBodyProps) {
             )}
           </a>
         ))}
+        {remaining > 0 && (
+          <div className="text-muted-foreground px-1.5 text-xs">
+            +{remaining} more
+          </div>
+        )}
       </div>
     )
   } else {
@@ -81,7 +91,8 @@ export function WebTool({ toolData, defaultOpen, className }: ToolBodyProps) {
   return (
     <ToolShell
       icon={<Globe />}
-      title={title}
+      label={getToolLabel(toolName, isRunning)}
+      summary={detail}
       running={isRunning}
       defaultOpen={defaultOpen}
       className={className}
