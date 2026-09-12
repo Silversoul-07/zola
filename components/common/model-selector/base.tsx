@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/tooltip"
 import { useModel } from "@/lib/model-store/provider"
 import { filterAndSortModels } from "@/lib/model-store/utils"
-import { filterAllowedModels } from "@/lib/models/allowed"
+import { filterAgentDefaultModel, filterAllowedModels } from "@/lib/models/allowed"
 import { ModelConfig } from "@/lib/models/types"
 import { PROVIDERS } from "@/lib/providers"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
@@ -50,8 +50,11 @@ export function ModelSelector({
 }: ModelSelectorProps) {
   const { models: allModels, isLoading: isLoadingModels, favoriteModels } =
     useModel()
-  const { isModelHidden } = useUserPreferences()
-  const models = filterAllowedModels(allModels)
+  const { isModelHidden, preferences } = useUserPreferences()
+  const models = filterAgentDefaultModel(
+    filterAllowedModels(allModels),
+    preferences.selectedAgentId
+  )
 
   const currentModel = models.find((model) => model.id === selectedModelId)
   const currentProvider = PROVIDERS.find(

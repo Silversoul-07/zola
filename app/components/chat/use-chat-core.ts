@@ -5,7 +5,9 @@ import { getOrCreateGuestUserId } from "@/lib/api"
 import { useChats } from "@/lib/chat-store/chats/provider"
 import { MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { Attachment } from "@/lib/file-handling"
+import { getEffectiveAgentId } from "@/lib/config"
 import { API_ROUTE_CHAT } from "@/lib/routes"
+import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import type { UserProfile } from "@/lib/user/types"
 import type { Message } from "@ai-sdk/react"
 import { useChat } from "@ai-sdk/react"
@@ -62,6 +64,10 @@ export function useChatCore({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasDialogAuth, setHasDialogAuth] = useState(false)
   const [enableSearch, setEnableSearch] = useState(false)
+
+  // Header AgentPicker selection (mirrors the default in agent-picker.tsx).
+  const { preferences } = useUserPreferences()
+  const agentId = getEffectiveAgentId(preferences.selectedAgentId)
 
   // Refs and derived state
   const hasSentFirstMessageRef = useRef(false)
@@ -224,6 +230,7 @@ export function useChatCore({
           systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
           enableSearch,
           incognito,
+          agentId,
         },
         experimental_attachments: attachments || undefined,
       }
@@ -269,6 +276,7 @@ export function useChatCore({
     bumpChat,
     setIsSubmitting,
     incognito,
+    agentId,
   ])
 
   const submitEdit = useCallback(

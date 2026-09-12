@@ -29,6 +29,8 @@ type ChatRequest = {
   editCutoffTimestamp?: string
   /** When true, nothing about this turn is written to the database. */
   incognito?: boolean
+  /** Header AgentPicker selection. "none"/unset routes straight to the model. */
+  agentId?: string
 }
 
 export async function POST(req: Request) {
@@ -50,6 +52,7 @@ export async function POST(req: Request) {
       message_group_id,
       editCutoffTimestamp,
       incognito,
+      agentId,
     } = (await req.json()) as ChatRequest
 
     if (!messages || !chatId) {
@@ -110,10 +113,12 @@ export async function POST(req: Request) {
 
     // Hermes Agent runs its own model + tools server-side on our VM; bypass
     // streamText entirely and stream its /v1/responses SSE straight through.
-    if (model.startsWith("hermes:")) {
+    // "hermes-agent" is sent through as-is: Hermes treats it as "use the
+    // agent's own default", any other model id is a LiteLLM lane it also honours.
+    if (agentId && agentId !== "none") {
       const hermesRes = await hermesRequest({
         messages,
-        model: model.slice("hermes:".length),
+        model,
         chatId,
         systemPrompt: effectiveSystemPrompt,
       })

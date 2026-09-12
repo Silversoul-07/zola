@@ -50,7 +50,7 @@ const MODEL_PROVIDER_MAP: Record<string, Provider> = {
   "ministral-3b-latest": "mistral",
   "ministral-8b-latest": "mistral",
   "mistral-large-latest": "mistral",
-  "mistral-small-latest": "mistral",
+  // "mistral-small-latest" is redefined as "litellm" below (LiteLLM lane wins).
   "pixtral-large-latest": "mistral",
   "pixtral-12b-2409": "mistral",
   "open-mistral-7b": "mistral",
@@ -122,6 +122,19 @@ const MODEL_PROVIDER_MAP: Record<string, Provider> = {
   // Static Ollama models
   "llama3.2:latest": "ollama",
   "qwen2.5-coder:latest": "ollama",
+
+  // LiteLLM lanes (our gateway). Note: "mistral-small-latest" also exists as a
+  // direct Mistral entry above; this overrides it so that id resolves to the
+  // LiteLLM gateway instead, since the chat-box picker only ever shows the
+  // LiteLLM catalogue entry for that id.
+  "deepseek-v4-flash": "litellm",
+  "deepseek-v4-pro": "litellm",
+  "gemini-3.5-flash": "litellm",
+  "gemini-3.5-flash-lite": "litellm",
+  "gemini-2.5-pro": "litellm",
+  "gpt-oss-120b": "litellm",
+  "mistral-small-latest": "litellm",
+  "nemotron-3.5-lightning": "litellm",
 }
 
 // Function to check if a model is likely an Ollama model based on naming patterns

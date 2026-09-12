@@ -8,6 +8,8 @@ export const env = {
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY!,
   HERMES_API_URL: process.env.HERMES_API_URL || "https://agent.kryos.dev",
   HERMES_API_KEY: process.env.HERMES_API_KEY!,
+  LITELLM_URL: process.env.LITELLM_URL || "http://127.0.0.1:4000",
+  LITELLM_MASTER_KEY: process.env.LITELLM_MASTER_KEY!,
 }
 
 export function createEnvWithUserKeys(
@@ -24,5 +26,7 @@ export function createEnvWithUserKeys(
     OPENROUTER_API_KEY: userKeys.openrouter || env.OPENROUTER_API_KEY,
     HERMES_API_URL: env.HERMES_API_URL,
     HERMES_API_KEY: userKeys.hermes || env.HERMES_API_KEY,
+    LITELLM_URL: env.LITELLM_URL,
+    LITELLM_MASTER_KEY: env.LITELLM_MASTER_KEY,
   }
 }

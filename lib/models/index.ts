@@ -3,7 +3,7 @@ import { claudeModels } from "./data/claude"
 import { deepseekModels } from "./data/deepseek"
 import { geminiModels } from "./data/gemini"
 import { grokModels } from "./data/grok"
-import { hermesModels } from "./data/hermes"
+import { litellmModels } from "./data/litellm"
 import { mistralModels } from "./data/mistral"
 import { getOllamaModels, ollamaModels } from "./data/ollama"
 import { openaiModels } from "./data/openai"
@@ -13,7 +13,7 @@ import { ModelConfig } from "./types"
 
 // Static models (always available)
 const STATIC_MODELS: ModelConfig[] = [
-  ...hermesModels,
+  ...litellmModels,
   ...openaiModels,
   ...mistralModels,
   ...deepseekModels,

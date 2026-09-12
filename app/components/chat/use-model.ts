@@ -1,6 +1,6 @@
 import { toast } from "@/components/ui/toast"
 import { Chats } from "@/lib/chat-store/types"
-import { AGENTS, MODEL_DEFAULT } from "@/lib/config"
+import { getEffectiveAgentId, MODEL_DEFAULT } from "@/lib/config"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import type { UserProfile } from "@/lib/user/types"
 import { useCallback, useState } from "react"
@@ -28,21 +28,18 @@ export function useModel({
   chatId,
 }: UseModelProps) {
   const { preferences } = useUserPreferences()
-  const selectedAgentModel = AGENTS.find(
-    (agent) => agent.id === preferences.selectedAgentId
-  )?.model
+  const effectiveAgentId = getEffectiveAgentId(preferences.selectedAgentId)
+  const agentSelected = !!effectiveAgentId && effectiveAgentId !== "none"
 
   // Calculate the effective model based on priority:
-  // chat model > agent picker selection > first favorite model > default
+  // chat model > first favorite model > default
+  // "hermes-agent" (Agent default) only makes sense while an agent is
+  // selected; fall back to the default model if the agent gets deselected.
   const getEffectiveModel = useCallback(() => {
     const firstFavoriteModel = user?.favorite_models?.[0]
-    return (
-      currentChat?.model ||
-      selectedAgentModel ||
-      firstFavoriteModel ||
-      MODEL_DEFAULT
-    )
-  }, [currentChat?.model, selectedAgentModel, user?.favorite_models])
+    const model = currentChat?.model || firstFavoriteModel || MODEL_DEFAULT
+    return model === "hermes-agent" && !agentSelected ? MODEL_DEFAULT : model
+  }, [currentChat?.model, user?.favorite_models, agentSelected])
 
   // Use local state only for temporary overrides, derive base value from props
   const [localSelectedModel, setLocalSelectedModel] = useState<string | null>(

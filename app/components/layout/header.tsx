@@ -36,7 +36,6 @@ export function Header({ hasSidebar }: { hasSidebar: boolean }) {
                 </Link>
               )}
               {hasSidebar && isMobile && <HeaderSidebarTrigger />}
-              {isLoggedIn && <AgentPicker />}
             </div>
           </div>
           <div />
@@ -65,6 +64,7 @@ export function Header({ hasSidebar }: { hasSidebar: boolean }) {
             <div className="pointer-events-auto flex flex-1 items-center justify-end gap-2">
               <ButtonNewChat />
               {!hasSidebar && <HistoryTrigger hasSidebar={hasSidebar} />}
+              <AgentPicker />
               <UserMenu />
             </div>
           )}
