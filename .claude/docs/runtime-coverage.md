@@ -25,11 +25,11 @@ Not covered: agent mode selection (build / plan; the prompt body accepts `agent`
 
 Support the maximum of both runtimes' features that their HTTP APIs expose, without patching Hermes or OpenCode themselves (CLOUD9 `CLAUDE.md` §2b). Anything that needs an upstream change is tracked as an upstream issue, not reimplemented here.
 
-### Cheapest wins (do first, in this order)
+### Cheapest wins (items 1 to 4 shipped 2026-09-12 in 63197e5; item 5 open)
 
 1. **OpenCode abort on stop.** When the user presses stop on an OpenCode chat, call `POST /session/:id/abort` in addition to cancelling the fetch. Server route: `app/api/cloud9/opencode/abort`.
 2. **OpenCode agent mode picker.** Expose `build` / `plan` (from `GET /agent`) next to the model picker for OpenCode chats and pass `agent` in the prompt body.
-3. **OpenCode permission replies.** Handle `permission.updated` in the mapper: emit a custom data part the UI renders as an approve / deny card, and reply through `POST /session/:id/permissions/:permissionID`. Verified on the VM (2026-09-12): every agent allows `*` but asks for `doom_loop` and `external_directory`, so a session that trips either one hangs today. Interim mitigation: set those two to `allow` in `~/.config/opencode/opencode.json` from `scripts/install_opencode.sh`; the approve/deny card replaces that once built.
+3. **OpenCode permission replies.** Handle `permission.updated` in the mapper: emit a custom data part the UI renders as an approve / deny card, and reply through `POST /session/:id/permissions/:permissionID`. Verified on the VM (2026-09-12): every agent allows `*` but asks for `doom_loop` and `external_directory`, so a session that trips either one hangs today. Interim mitigation live since cloud9 e4a2f41: both set to `allow` in `hermes/opencode.json`. The approve/deny card is built; switch the two rules back to `ask` after one real permission prompt has been answered through the card.
 4. **Per-chat agent.** Store `agent_id` on `chats` so reopening an OpenCode chat shows OpenCode in the header instead of the user's default preference.
 5. **Subagent visibility.** Track child sessions of the current session (from `session.created` events with `parentID`) and render their tool calls nested under the `task` row.
 
