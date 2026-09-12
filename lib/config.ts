@@ -41,8 +41,46 @@ export const FREE_MODELS_IDS = [
 
 export const MODEL_DEFAULT = "hermes:hermes-agent"
 
-export const APP_NAME = "Zola"
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Zola"
 export const APP_DOMAIN = "https://zola.chat"
+
+// Agent picker (header): NEXT_PUBLIC_AGENTS is a JSON array of
+// { id, name, model }. Selecting an agent sets the chat model to `model`.
+export type AgentConfig = { id: string; name: string; model: string }
+
+const DEFAULT_AGENTS: AgentConfig[] = [
+  { id: "hermes", name: "Hermes Agent", model: "hermes:hermes-agent" },
+]
+
+function parseAgents(): AgentConfig[] {
+  const raw = process.env.NEXT_PUBLIC_AGENTS
+  if (!raw) return DEFAULT_AGENTS
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_AGENTS
+  } catch {
+    return DEFAULT_AGENTS
+  }
+}
+
+export const AGENTS: AgentConfig[] = parseAgents()
+
+// Model picker (chat input): NEXT_PUBLIC_ALLOWED_MODELS is a comma-separated
+// list of model ids. Defaults to ALLOWED_MODEL_IDS above, plus agent models.
+export const ALLOWED_MODEL_IDS_ENV = process.env.NEXT_PUBLIC_ALLOWED_MODELS?.split(
+  ","
+)
+  .map((id) => id.trim())
+  .filter(Boolean)
+
+export const EFFECTIVE_ALLOWED_MODEL_IDS = Array.from(
+  new Set([
+    ...(ALLOWED_MODEL_IDS_ENV && ALLOWED_MODEL_IDS_ENV.length > 0
+      ? ALLOWED_MODEL_IDS_ENV
+      : ALLOWED_MODEL_IDS),
+    ...AGENTS.map((agent) => agent.model),
+  ])
+)
 
 export const SUGGESTIONS = [
   {

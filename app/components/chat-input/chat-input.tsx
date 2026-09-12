@@ -13,6 +13,7 @@ import { ArrowUpIcon, StopIcon } from "@phosphor-icons/react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { PromptSystem } from "../suggestions/prompt-system"
 import { ButtonFileUpload } from "./button-file-upload"
+import { ButtonIncognito } from "./button-incognito"
 import { ButtonSearch } from "./button-search"
 import { FileList } from "./file-list"
 
@@ -35,6 +36,8 @@ type ChatInputProps = {
   setEnableSearch: (enabled: boolean) => void
   enableSearch: boolean
   quotedText?: { text: string; messageId: string } | null
+  incognito?: boolean
+  setIncognito?: (value: boolean) => void
 }
 
 export function ChatInput({
@@ -55,6 +58,8 @@ export function ChatInput({
   setEnableSearch,
   enableSearch,
   quotedText,
+  incognito = false,
+  setIncognito,
 }: ChatInputProps) {
   const selectModelConfig = getModelInfo(selectedModel)
   const hasSearchSupport = Boolean(selectModelConfig?.webSearch)
@@ -206,6 +211,12 @@ export function ChatInput({
                   isAuthenticated={isUserAuthenticated}
                 />
               ) : null}
+              {setIncognito && (
+                <ButtonIncognito
+                  isSelected={incognito}
+                  onToggle={setIncognito}
+                />
+              )}
             </div>
             <PromptInputAction
               tooltip={status === "streaming" ? "Stop" : "Send"}

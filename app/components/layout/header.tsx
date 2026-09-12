@@ -1,6 +1,7 @@
 "use client"
 
 import { HistoryTrigger } from "@/app/components/history/history-trigger"
+import { AgentPicker } from "@/app/components/layout/agent-picker"
 import { AppInfoTrigger } from "@/app/components/layout/app-info/app-info-trigger"
 import { ButtonNewChat } from "@/app/components/layout/button-new-chat"
 import { UserMenu } from "@/app/components/layout/user-menu"
@@ -8,18 +9,14 @@ import { useBreakpoint } from "@/app/hooks/use-breakpoint"
 import { ZolaIcon } from "@/components/icons/zola"
 import { Button } from "@/components/ui/button"
 import { APP_NAME } from "@/lib/config"
-import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { useUser } from "@/lib/user-store/provider"
 import { Info } from "@phosphor-icons/react"
 import Link from "next/link"
-import { DialogPublish } from "./dialog-publish"
 import { HeaderSidebarTrigger } from "./header-sidebar-trigger"
 
 export function Header({ hasSidebar }: { hasSidebar: boolean }) {
   const isMobile = useBreakpoint(768)
   const { user } = useUser()
-  const { preferences } = useUserPreferences()
-  const isMultiModelEnabled = preferences.multiModelEnabled
 
   const isLoggedIn = !!user
 
@@ -29,14 +26,17 @@ export function Header({ hasSidebar }: { hasSidebar: boolean }) {
         <div className="flex flex-1 items-center justify-between">
           <div className="-ml-0.5 flex flex-1 items-center gap-2 lg:-ml-2.5">
             <div className="flex flex-1 items-center gap-2">
-              <Link
-                href="/"
-                className="pointer-events-auto inline-flex items-center text-xl font-medium tracking-tight"
-              >
-                <ZolaIcon className="mr-1 size-4" />
-                {APP_NAME}
-              </Link>
+              {(!hasSidebar || isMobile) && (
+                <Link
+                  href="/"
+                  className="pointer-events-auto inline-flex items-center text-xl font-medium tracking-tight"
+                >
+                  <ZolaIcon className="mr-1 size-4" />
+                  {APP_NAME}
+                </Link>
+              )}
               {hasSidebar && isMobile && <HeaderSidebarTrigger />}
+              {isLoggedIn && <AgentPicker />}
             </div>
           </div>
           <div />
@@ -63,7 +63,6 @@ export function Header({ hasSidebar }: { hasSidebar: boolean }) {
             </div>
           ) : (
             <div className="pointer-events-auto flex flex-1 items-center justify-end gap-2">
-              {!isMultiModelEnabled && <DialogPublish />}
               <ButtonNewChat />
               {!hasSidebar && <HistoryTrigger hasSidebar={hasSidebar} />}
               <UserMenu />
