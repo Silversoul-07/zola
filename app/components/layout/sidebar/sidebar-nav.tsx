@@ -1,11 +1,16 @@
 "use client"
 
-import { cn } from "@/lib/utils"
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar"
 import {
   ChartLineIcon,
   ChatsCircleIcon,
   ClockCounterClockwiseIcon,
   KanbanIcon,
+  NotePencilIcon,
   PlugsConnectedIcon,
   RobotIcon,
   SquaresFourIcon,
@@ -14,6 +19,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 const NAV_ITEMS = [
+  { href: "/", label: "New chat", icon: NotePencilIcon },
   { href: "/agents", label: "Agents", icon: RobotIcon },
   { href: "/skills", label: "Skills", icon: ChatsCircleIcon },
   { href: "/connectors", label: "Connectors", icon: PlugsConnectedIcon },
@@ -27,23 +33,28 @@ export function SidebarNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="mb-5 space-y-0.5">
+    <SidebarMenu className="mb-3 gap-0.5">
       {NAV_ITEMS.map((item) => {
-        const isActive = pathname?.startsWith(item.href)
+        const isActive =
+          item.href === "/"
+            ? pathname === "/"
+            : pathname?.startsWith(item.href)
         return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "text-primary hover:bg-accent/80 hover:text-foreground flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors",
-              isActive && "bg-accent text-foreground"
-            )}
-          >
-            <item.icon size={18} />
-            {item.label}
-          </Link>
+          <SidebarMenuItem key={item.href}>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive}
+              tooltip={item.label}
+              className="h-10 text-sm"
+            >
+              <Link href={item.href} prefetch>
+                <item.icon size={18} />
+                <span>{item.label}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         )
       })}
-    </nav>
+    </SidebarMenu>
   )
 }
