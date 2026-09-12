@@ -32,6 +32,7 @@ type OpencodeToolState = {
 type OpencodePart = {
   id: string
   sessionID: string
+  messageID?: string
   type: string
   text?: string
   callID?: string
@@ -54,6 +55,56 @@ type OpencodeToolPart = {
 type OpencodeFinishPayload = {
   text: string
   toolParts: OpencodeToolPart[]
+}
+
+// OpenCode tool names/params, normalised to the Hermes shapes the chat
+// renderers already understand (tools/index.tsx, tool-labels.ts). Unknown
+// tools pass through untouched and fall back to the generic row.
+const TOOL_NAME_MAP: Record<string, string> = {
+  bash: "terminal",
+  read: "read_file",
+  write: "write_file",
+  edit: "patch",
+  glob: "search_files",
+  grep: "search_files",
+  list: "search_files",
+  webfetch: "web_extract",
+  todowrite: "todo_list",
+  todoread: "todo_list",
+  task: "delegate_task",
+}
+
+function editToDiff(path: string, oldStr: string, newStr: string): string {
+  const minus = oldStr ? oldStr.split("\n").map((l) => "-" + l) : []
+  const plus = newStr ? newStr.split("\n").map((l) => "+" + l) : []
+  return [`--- ${path}`, `+++ ${path}`, "@@ @@", ...minus, ...plus].join("\n")
+}
+
+export function normalizeOpencodeTool(
+  tool: string,
+  input: Record<string, unknown>,
+  output?: unknown
+): { toolName: string; args: Record<string, unknown>; result?: Record<string, unknown> } {
+  const toolName = TOOL_NAME_MAP[tool] ?? tool
+  const path = typeof input.filePath === "string" ? input.filePath : undefined
+  const args: Record<string, unknown> = { ...input }
+  if (path) args.path = path
+  if (tool === "edit" && path) {
+    args.diff = editToDiff(
+      path,
+      String(input.oldString ?? ""),
+      String(input.newString ?? "")
+    )
+  }
+  if (tool === "glob" || tool === "grep") args.query = input.pattern
+  if (tool === "list") args.query = input.path
+  if (output === undefined) return { toolName, args }
+  const text = typeof output === "string" ? output : JSON.stringify(output)
+  const result =
+    toolName === "search_files"
+      ? { matches: text.split("\n").filter(Boolean) }
+      : { output: text }
+  return { toolName, args, result }
 }
 
 type OpencodeStreamOpts = {
@@ -79,9 +130,12 @@ export function opencodeEventsToDataStream(
       const toolParts: OpencodeToolPart[] = []
       let fullText = ""
       let finished = false
+      // The /event bus also replays the user's own message parts; skip them.
+      const userMessageIds = new Set<string>()
 
       const handlePart = (part: OpencodePart) => {
         if (part.sessionID !== opts.sessionId) return
+        if (part.messageID && userMessageIds.has(part.messageID)) return
 
         if (part.type === "text" && typeof part.text === "string") {
           const prev = textByPart.get(part.id) ?? ""
@@ -106,13 +160,18 @@ export function opencodeEventsToDataStream(
 
         if (part.type === "tool" && part.state && part.callID && part.tool) {
           const { state } = part
-          if (!toolCalled.has(part.id)) {
+          // "pending" parts carry no input yet; wait for running/completed so
+          // the call line has real args.
+          if (!toolCalled.has(part.id) && state.status !== "pending") {
             toolCalled.add(part.id)
-            const args = state.input ?? {}
+            const { toolName, args } = normalizeOpencodeTool(
+              part.tool,
+              state.input ?? {}
+            )
             emit(
               formatDataStreamPart("tool_call", {
                 toolCallId: part.callID,
-                toolName: part.tool,
+                toolName,
                 args,
               })
             )
@@ -122,7 +181,7 @@ export function opencodeEventsToDataStream(
                 state: "call",
                 step: 0,
                 toolCallId: part.callID,
-                toolName: part.tool,
+                toolName,
                 args,
               },
             })
@@ -133,10 +192,20 @@ export function opencodeEventsToDataStream(
             !toolFinished.has(part.id)
           ) {
             toolFinished.add(part.id)
+            const norm = normalizeOpencodeTool(
+              part.tool,
+              state.input ?? {},
+              state.status === "completed" ? (state.output ?? "") : undefined
+            )
             const result =
               state.status === "completed"
-                ? { output: state.output }
-                : { error: state.error }
+                ? (norm.result ?? { output: state.output })
+                : {
+                    error:
+                      typeof state.error === "string"
+                        ? state.error
+                        : JSON.stringify(state.error),
+                  }
             emit(
               formatDataStreamPart("tool_result", {
                 toolCallId: part.callID,
@@ -149,8 +218,8 @@ export function opencodeEventsToDataStream(
                 state: "result",
                 step: 0,
                 toolCallId: part.callID,
-                toolName: part.tool,
-                args: state.input ?? {},
+                toolName: norm.toolName,
+                args: norm.args,
                 result,
               },
             })
@@ -174,6 +243,15 @@ export function opencodeEventsToDataStream(
         }
 
         switch (event.type) {
+          case "message.updated": {
+            const info = event.properties?.info as
+              | { id?: string; role?: string; sessionID?: string }
+              | undefined
+            if (info?.sessionID === opts.sessionId && info.role === "user" && info.id) {
+              userMessageIds.add(info.id)
+            }
+            break
+          }
           case "message.part.updated": {
             const part = event.properties?.part as OpencodePart | undefined
             if (part) handlePart(part)
@@ -198,7 +276,9 @@ export function opencodeEventsToDataStream(
             const message =
               typeof error === "string"
                 ? error
-                : (error as { message?: string } | undefined)?.message ||
+                : (error as { message?: string; data?: { message?: string } } | undefined)
+                    ?.data?.message ||
+                  (error as { message?: string } | undefined)?.message ||
                   "OpenCode agent request failed"
             emit(formatDataStreamPart("error", message))
             finished = true
@@ -231,17 +311,15 @@ export function opencodeEventsToDataStream(
           )
         )
       } finally {
-        try {
-          await reader.cancel()
-        } catch {
-          // connection already closed
-        }
+        // Persist and close first: cancelling the shared /event connection can
+        // block on the server, and awaiting it here kept the response open.
         try {
           await opts.onFinish?.({ text: fullText, toolParts })
         } catch (err) {
           console.error("opencode onFinish persistence failed:", err)
         }
         controller.close()
+        reader.cancel().catch(() => {})
       }
     },
   })

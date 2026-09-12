@@ -108,7 +108,7 @@ const toolCallLine = lines.find((l) => l.startsWith("9:"))
 assert.ok(toolCallLine, "expected a 9: tool_call line")
 assert.deepEqual(JSON.parse(toolCallLine.slice(2)), {
   toolCallId: "call_1",
-  toolName: "bash",
+  toolName: "terminal",
   args: { command: "ls" },
 })
 
