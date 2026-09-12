@@ -4,7 +4,7 @@ import { NextResponse } from "next/server"
 export async function GET() {
   if (!dashboardConfigured) {
     return NextResponse.json(
-      { error: "HERMES_DASHBOARD_TOKEN is not configured", boardUrl: "https://hermes.kryos.dev/kanban" },
+      { error: "HERMES_DASHBOARD_USER / HERMES_DASHBOARD_PASSWORD are not configured", boardUrl: "https://hermes.kryos.dev/kanban" },
       { status: 401 }
     )
   }

@@ -57,7 +57,7 @@ export default function ConnectorsPage() {
           isEmpty={data?.mcp.servers?.length === 0}
           emptyLabel={
             data?.mcp.configured === false
-              ? "Connect the dashboard: set HERMES_DASHBOARD_TOKEN to see MCP servers."
+              ? "Connect the dashboard: set HERMES_DASHBOARD_USER / HERMES_DASHBOARD_PASSWORD to see MCP servers."
               : "No MCP servers configured."
           }
         >
