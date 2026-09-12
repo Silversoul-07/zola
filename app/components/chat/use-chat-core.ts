@@ -99,6 +99,19 @@ export function useChatCore({
   // "build" per session/chat (see .claude/docs/runtime-coverage.md item 2).
   const [agentMode, setAgentMode] = useState("build")
 
+  // Per-chat thinking effort picker; persisted across chats/sessions.
+  const [reasoningEffort, setReasoningEffortState] = useState(() =>
+    typeof window !== "undefined"
+      ? (localStorage.getItem("zola:reasoning-effort") ?? "auto")
+      : "auto"
+  )
+  const setReasoningEffort = useCallback((value: string) => {
+    setReasoningEffortState(value)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("zola:reasoning-effort", value)
+    }
+  }, [])
+
   // Refs and derived state
   const hasSentFirstMessageRef = useRef(false)
   const prevChatIdRef = useRef<string | null>(chatId)
@@ -113,7 +126,7 @@ export function useChatCore({
   const prompt = searchParams.get("prompt")
 
   // Chats operations
-  const { updateTitle } = useChats()
+  const { updateTitle, refresh: refreshChats } = useChats()
 
   // Handle errors directly in onError callback
   const handleError = useCallback((error: Error) => {
@@ -143,6 +156,9 @@ export function useChatCore({
       transport,
       onFinish: async ({ message }) => {
         cacheAndAddMessage(message)
+        // ponytail: the server generates the title after it persists the reply;
+        // poll once instead of streaming a title event through the message.
+        setTimeout(() => void refreshChats(), 3000)
         try {
           const effectiveChatId =
             chatId ||
@@ -304,6 +320,7 @@ export function useChatCore({
             incognito,
             agentId,
             agentMode,
+            reasoningEffort,
             ...(activeCanvas
               ? { canvasId: activeCanvas.id, canvasTitle: activeCanvas.title }
               : {}),
@@ -356,6 +373,7 @@ export function useChatCore({
     incognito,
     agentId,
     agentMode,
+    reasoningEffort,
     activeCanvas,
   ])
 
@@ -471,6 +489,7 @@ export function useChatCore({
               incognito,
               agentId,
               agentMode,
+              reasoningEffort,
               editCutoffTimestamp: cutoffIso, // Backend will delete messages from this timestamp
             },
           }
@@ -501,6 +520,7 @@ export function useChatCore({
       status,
       agentId,
       agentMode,
+      reasoningEffort,
       incognito,
     ]
   )
@@ -557,6 +577,7 @@ export function useChatCore({
               incognito,
               agentId,
               agentMode,
+              reasoningEffort,
             },
           }
         )
@@ -579,6 +600,7 @@ export function useChatCore({
       incognito,
       agentId,
       agentMode,
+      reasoningEffort,
     ]
   )
 
@@ -647,6 +669,8 @@ export function useChatCore({
     runtime,
     agentMode,
     setAgentMode,
+    reasoningEffort,
+    setReasoningEffort,
 
     // Actions
     submit,

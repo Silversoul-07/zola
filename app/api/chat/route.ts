@@ -1,4 +1,5 @@
 import { canvasSystemPromptAddendum } from "@/lib/canvas/prompt"
+import { maybeGenerateTitle } from "@/lib/title"
 import { AGENTS, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import type { Attachment } from "@/lib/file-handling"
 import { hermesRequest } from "@/lib/hermes/client"
@@ -43,6 +44,8 @@ type ChatRequest = {
   agentId?: string
   /** OpenCode agent mode picker (build/plan/...); ignored by other runtimes. */
   agentMode?: string
+  /** Per-chat thinking effort picker ("auto"/"low"/"medium"/"high"); "auto" leaves the runtime default. */
+  reasoningEffort?: string
   /** Set by the client when a canvas tab is active; triggers the ```canvas protocol addendum below. */
   canvasId?: string
   canvasTitle?: string
@@ -76,12 +79,14 @@ async function persistAssistantMessage({
   message,
   message_group_id,
   model,
+  userText,
 }: {
   shouldPersist: boolean
   chatId: string
   message: UIMessage
   message_group_id?: string
   model: string
+  userText?: string
 }) {
   if (!shouldPersist) return
   await storeAssistantMessage({
@@ -90,6 +95,15 @@ async function persistAssistantMessage({
     message_group_id,
     model,
   })
+  const assistantText = message.parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("\n")
+  try {
+    await maybeGenerateTitle({ chatId, userText: userText ?? "", assistantText })
+  } catch (err) {
+    console.error("Title generation failed:", err)
+  }
 }
 
 export async function POST(req: Request) {
@@ -113,9 +127,19 @@ export async function POST(req: Request) {
       incognito,
       agentId,
       agentMode,
+      reasoningEffort,
       canvasId,
       canvasTitle,
     } = (await req.json()) as ChatRequest
+
+    const effort =
+      reasoningEffort && reasoningEffort !== "auto" ? reasoningEffort : undefined
+    const lastUser = [...messages].reverse().find((m) => m.role === "user")
+    const lastUserText =
+      lastUser?.parts
+        ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("\n") ?? ""
 
     if (!messages || !chatId) {
       return new Response(
@@ -226,6 +250,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
         model,
         agent: agentMode,
         system: canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined),
+        variant: effort,
       })
 
       const stream = opencodeEventsToUIMessageStream(eventStream, {
@@ -237,6 +262,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
             message,
             message_group_id,
             model,
+            userText: lastUserText,
           }),
       })
 
@@ -253,6 +279,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
         model,
         chatId,
         systemPrompt: effectiveSystemPrompt,
+        modelOptions: effort ? { reasoning: { effort } } : undefined,
       })
 
       const stream = hermesResponsesToUIMessageStream(
@@ -265,6 +292,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
               message,
               message_group_id,
               model,
+              userText: lastUserText,
             }),
         }
       )
@@ -301,6 +329,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
           message: responseMessage,
           message_group_id,
           model,
+          userText: lastUserText,
         }),
       onError: (error: unknown) => {
         console.error("Error forwarded to client:", error)

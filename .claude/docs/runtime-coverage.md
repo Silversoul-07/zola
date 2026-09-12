@@ -35,7 +35,7 @@ Support the maximum of both runtimes' features that their HTTP APIs expose, with
 
 ### Hermes items
 
-- Reasoning stream: `/v1/responses` never surfaces model reasoning (upstream `api_server_openai_routes.py` wires `_on_tool_progress` as a no-op, verified 2026-09-12 at main and at the pinned commit). Hermes does stream it on `POST /api/sessions/{session_id}/chat/stream` as `tool.progress` events with `tool_name: "_thinking"` and a `delta`. v2: move the Hermes mapper to that endpoint and map `_thinking` deltas to `reasoning-delta`; until then the chat shows only the loader while Hermes thinks.
+- Reasoning stream: Hermes exposes no model reasoning to HTTP clients at the pinned commit (verified 2026-09-13 in the source, not just the API docs). `/v1/responses` and `/v1/chat/completions` wire the progress callback as a no-op; `/api/sessions/{id}/chat/stream` does emit `tool.progress` with `tool_name: "_thinking"`, but that payload is the assistant's interstitial text between tool calls (`agent/turn_response_intake.py::_relay_thinking`, first 500 chars), not provider `reasoning_content`, which Hermes keeps internal (`plugins.stream_reasoning_deltas` only feeds plugin hooks). Track upstream; OpenCode chats already stream reasoning. Reasoning *effort* is supported today: the chat box "Thinking" picker sends `model_options.reasoning.effort` to Hermes and `variant` to OpenCode (variants `low|medium|high` declared per model in `hermes/opencode.json`, live after the next cloud9 deploy).
 
 - Slash commands: Settings > Commands tab (user- or agent-created). Execution path to decide with upstream: either the gateway `slash.exec` JSON-RPC, or plain prompt expansion on the client. Prompt expansion needs no upstream change and is the v2 default.
 - Profiles: runtime picker lists one entry per Hermes profile when `gateway.multiplex_profiles` is enabled; each maps to its own API port.
@@ -46,6 +46,13 @@ Support the maximum of both runtimes' features that their HTTP APIs expose, with
 ### Projects (v2, agent-fed)
 
 A project is a repository the coder works on. Source of truth is OpenCode `GET /project` synced with the Hermes kanban board. The Projects page lists projects, sessions per project (`GET /session?directory=`), and opens the workspace pane rooted at the project directory. No manual project creation in the UI.
+
+### Shipped 2026-09-13 (local commits, deploy pending)
+
+- Tool UI (`components/tool-ui/`, MIT, shadcn registry `@tool-ui`): `Terminal` for terminal/execute_code/process_manage, `CodeBlock` for write_file, `Plan` for todo_list. Everything else stays on the AI Elements `Tool` card with the existing per-tool bodies. Not adopted: `CodeDiff` (its `@pierre/diffs` renderer mounted an empty shadow root under Turbopack after the theme fixes; patch keeps the prompt-kit diff view). Revisit when tool-ui ships a Turbopack-verified release.
+- Step group: everything before the final answer (interstitial text, reasoning, tool calls, permission cards) folds into one collapsible header with the turn duration (`app/components/chat/work-group.tsx`).
+- `data-turn` part per assistant message (`lib/turn.ts`): duration + usage from `response.completed` (Hermes) / assistant `message.updated.tokens` (OpenCode). Feeds the AI Elements `Context` meter in the chat box; window size from LiteLLM `/model/info` via `/api/cloud9/context-window`, fallback 128k.
+- Generated chat titles after the first exchange (`lib/title.ts`): LiteLLM `deepseek-v4-flash`, falling back to one non-streaming Hermes turn when LiteLLM is unreachable (dev laptop).
 
 ### Not planned
 

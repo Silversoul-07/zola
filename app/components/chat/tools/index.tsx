@@ -1,6 +1,7 @@
 import type { ComponentType } from "react"
 import { FileTool } from "./file-tool"
 import { MediaTool } from "./media-tool"
+import { PlanTool } from "./plan-tool"
 import { SummaryTool } from "./summary-tool"
 import { TerminalTool } from "./terminal-tool"
 import type { ToolBodyProps } from "./tool-shell"
@@ -21,7 +22,7 @@ const RENDERERS: Record<string, ComponentType<ToolBodyProps>> = {
   image_generate: MediaTool,
   delegate_task: SummaryTool,
   memory: SummaryTool,
-  todo_list: SummaryTool,
+  todo_list: PlanTool,
   cronjob_manage: SummaryTool,
   session_search: SummaryTool,
   manage_connections: SummaryTool,

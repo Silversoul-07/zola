@@ -27,6 +27,8 @@ import { QuoteButton } from "./quote-button"
 import { SearchImages } from "./search-images"
 import { SourcesList } from "./sources-list"
 import { ToolInvocation } from "./tool-invocation"
+import { splitWork, WorkGroup } from "./work-group"
+import { turnFromParts } from "@/lib/turn"
 import { useAssistantMessageSelection } from "./useAssistantMessageSelection"
 
 type MessageAssistantProps = {
@@ -66,9 +68,18 @@ export function MessageAssistant({
   const reasoningPart = parts?.find(
     (part): part is { type: "reasoning"; text: string } => part.type === "reasoning"
   )
-  const contentNullOrEmpty = children === null || children === ""
+  const { work, answer } = splitWork(parts ?? [])
+  const hasWork = work.length > 0
+  const answerText = hasWork
+    ? answer
+        .filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("")
+    : children
+  const contentNullOrEmpty = answerText === null || answerText === ""
   const isLastStreaming = status === "streaming" && isLast
-  const segments = contentNullOrEmpty ? [] : parseCanvasSegments(children)
+  const segments = contentNullOrEmpty ? [] : parseCanvasSegments(answerText)
+  const turn = turnFromParts(parts)
   const { chatId } = useChatSession()
   const { openCanvas } = useWorkspace()
   const handleOpenInCanvas = useCallback(async () => {
@@ -76,12 +87,12 @@ export function MessageAssistant({
     const res = await fetch("/api/cloud9/canvas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatId, title: "Untitled", content: children }),
+      body: JSON.stringify({ chatId, title: "Untitled", content: answerText }),
     })
     if (!res.ok) return
     const canvas = await res.json()
     openCanvas(canvas.id, canvas.title, canvas.content)
-  }, [chatId, contentNullOrEmpty, children, openCanvas])
+  }, [chatId, contentNullOrEmpty, answerText, openCanvas])
   const searchImageResults =
     toolInvocationParts
       .filter(
@@ -136,20 +147,30 @@ export function MessageAssistant({
       >
         {showThinking && <Loader />}
 
-        {reasoningPart && reasoningPart.text && (
-          <Reasoning isStreaming={status === "streaming"}>
-            <ReasoningTrigger />
-            <ReasoningContent>{reasoningPart.text}</ReasoningContent>
-          </Reasoning>
+        {hasWork ? (
+          <WorkGroup
+            parts={work}
+            streaming={Boolean(isLast && (status === "streaming" || status === "submitted"))}
+            durationMs={turn?.durationMs}
+            timings={turn?.tools}
+            showTools={preferences.showToolInvocations}
+          />
+        ) : (
+          <>
+            {reasoningPart && reasoningPart.text && (
+              <Reasoning isStreaming={status === "streaming"}>
+                <ReasoningTrigger />
+                <ReasoningContent>{reasoningPart.text}</ReasoningContent>
+              </Reasoning>
+            )}
+            {toolInvocationParts.length > 0 && preferences.showToolInvocations && (
+              <ToolInvocation toolInvocations={toolInvocationParts} />
+            )}
+            {permissionParts.map((part) => (
+              <PermissionCard key={part.id ?? part.data.id} data={part.data} />
+            ))}
+          </>
         )}
-
-        {toolInvocationParts.length > 0 && preferences.showToolInvocations && (
-          <ToolInvocation toolInvocations={toolInvocationParts} />
-        )}
-
-        {permissionParts.map((part) => (
-          <PermissionCard key={part.id ?? part.data.id} data={part.data} />
-        ))}
 
         {searchImageResults.length > 0 && (
           <SearchImages results={searchImageResults as never[]} />

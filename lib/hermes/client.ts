@@ -48,6 +48,7 @@ type HermesRequestArgs = {
   model: string
   chatId: string
   systemPrompt?: string
+  modelOptions?: Record<string, unknown>
   signal?: AbortSignal
 }
 
@@ -59,6 +60,7 @@ export async function hermesRequest({
   model,
   chatId,
   systemPrompt,
+  modelOptions,
   signal,
 }: HermesRequestArgs): Promise<Response> {
   const res = await fetch(`${env.HERMES_API_URL}/v1/responses`, {
@@ -74,6 +76,7 @@ export async function hermesRequest({
       stream: true,
       instructions: systemPrompt,
       input: toInputItems(messages),
+      ...(modelOptions ? { model_options: modelOptions } : {}),
     }),
   })
 

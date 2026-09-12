@@ -1,4 +1,12 @@
 import { createUIMessageStream, type UIMessage, type UIMessageStreamWriter } from "ai"
+import { toolTimer, turnData } from "@/lib/turn"
+
+type OpencodeTokens = {
+  input?: number
+  output?: number
+  reasoning?: number
+  cache?: { read?: number; write?: number }
+}
 
 // Maps OpenCode's `/event` SSE bus to the AI SDK v5+ UI message stream
 // protocol (same job as lib/hermes/stream.ts, mirrored for OpenCode's event
@@ -129,6 +137,9 @@ async function writeOpencodeEvents(
   const toolCalled = new Set<string>()
   const toolFinished = new Set<string>()
   let finished = false
+  const startedAt = Date.now()
+  const timer = toolTimer()
+  let lastTokens: OpencodeTokens | undefined
   // The /event bus also replays the user's own message parts; skip them.
   const userMessageIds = new Set<string>()
 
@@ -176,6 +187,7 @@ async function writeOpencodeEvents(
           part.tool,
           state.input ?? {}
         )
+        timer.start(part.callID)
         writer.write({
           type: "tool-input-available",
           toolCallId: part.callID,
@@ -194,6 +206,7 @@ async function writeOpencodeEvents(
           state.input ?? {},
           state.status === "completed" ? (state.output ?? "") : undefined
         )
+        timer.end(part.callID)
         if (state.status === "completed") {
           writer.write({
             type: "tool-output-available",
@@ -237,10 +250,13 @@ async function writeOpencodeEvents(
     switch (event.type) {
       case "message.updated": {
         const info = event.properties?.info as
-          | { id?: string; role?: string; sessionID?: string }
+          | { id?: string; role?: string; sessionID?: string; tokens?: OpencodeTokens }
           | undefined
         if (info?.sessionID === sessionId && info.role === "user" && info.id) {
           userMessageIds.add(info.id)
+        }
+        if (info?.sessionID === sessionId && info.role === "assistant" && info.tokens) {
+          lastTokens = info.tokens
         }
         break
       }
@@ -262,6 +278,17 @@ async function writeOpencodeEvents(
       case "session.idle": {
         if (event.properties?.sessionID !== sessionId) break
         closeOpenParts()
+        writer.write({
+          type: "data-turn",
+          id: "turn",
+          data: turnData(startedAt, {
+            inputTokens: lastTokens?.input,
+            outputTokens: lastTokens?.output,
+            reasoningTokens: lastTokens?.reasoning,
+            cacheReadTokens: lastTokens?.cache?.read,
+            cacheWriteTokens: lastTokens?.cache?.write,
+          }, timer.tools),
+        })
         writer.write({ type: "finish" })
         finished = true
         break

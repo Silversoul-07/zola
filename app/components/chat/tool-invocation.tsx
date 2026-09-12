@@ -1,59 +1,139 @@
 "use client"
 
-import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool"
 import { Shimmer } from "@/components/ai-elements/shimmer"
+import { ToolInput, ToolOutput, type ToolPart } from "@/components/ai-elements/tool"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import type { UIMessage } from "ai"
-import { getToolLabel, getToolSummary } from "./tools/tool-labels"
+import { ChevronRightIcon, WrenchIcon } from "lucide-react"
+import type { ReactNode } from "react"
 import { getToolRenderer } from "./tools"
-import type { ToolUIPart } from "./tools/tool-shell"
+import { getToolLabel, getToolSummary } from "./tools/tool-labels"
+
+type ToolUIPart = ToolPart
 
 interface ToolInvocationProps {
   toolInvocations: UIMessage["parts"]
   className?: string
   defaultOpen?: boolean
+  /** toolCallId -> wall-clock ms, from the turn's `data-turn` part */
+  timings?: Record<string, number>
 }
 
 function toolNameOf(type: string): string {
   return type.startsWith("tool-") ? type.slice("tool-".length) : type
 }
 
-// Renders one compact transcript row per tool call, stacked with no gap so
-// consecutive calls read as a single tight block (adopted from Coder's
-// Conversation / TranscriptRow layout).
+export function formatMs(ms?: number): string | null {
+  if (ms === undefined || !Number.isFinite(ms)) return null
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`
+  return `${Math.round(ms / 60_000)}m`
+}
+
+// One flat transcript row per step (icon · label · summary · duration ·
+// chevron); the body expands underneath. No per-row card chrome, so a run
+// with many steps reads as a list, like Claude's activity view.
+export function StepRow({
+  icon,
+  label,
+  summary,
+  running,
+  error,
+  durationMs,
+  defaultOpen = false,
+  children,
+}: {
+  icon: ReactNode
+  label: string
+  summary?: string
+  running?: boolean
+  error?: boolean
+  durationMs?: number
+  defaultOpen?: boolean
+  children?: ReactNode
+}) {
+  const ms = formatMs(durationMs)
+  return (
+    <Collapsible defaultOpen={defaultOpen} className="group/row w-full min-w-0">
+      <CollapsibleTrigger
+        className={cn(
+          "hover:bg-accent/40 flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+          !children && "pointer-events-none"
+        )}
+      >
+        <span className="text-muted-foreground flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">
+          {icon}
+        </span>
+        <span className="shrink-0 font-medium">
+          {running ? <Shimmer as="span">{label}</Shimmer> : label}
+        </span>
+        {summary && (
+          <>
+            <span className="text-muted-foreground shrink-0">-</span>
+            <span className="text-muted-foreground min-w-0 flex-1 truncate">{summary}</span>
+          </>
+        )}
+        {!summary && <span className="flex-1" />}
+        {(ms || running || error) && (
+          <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs tabular-nums">
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                error ? "bg-red-500" : running ? "bg-amber-400 animate-pulse" : "bg-emerald-500"
+              )}
+            />
+            {ms}
+          </span>
+        )}
+        {children && (
+          <ChevronRightIcon className="text-muted-foreground size-4 shrink-0 transition-transform group-data-[state=open]/row:rotate-90" />
+        )}
+      </CollapsibleTrigger>
+      {children && (
+        <CollapsibleContent className="min-w-0 pb-2 pl-8 pr-2">{children}</CollapsibleContent>
+      )}
+    </Collapsible>
+  )
+}
+
 export function ToolInvocation({
   toolInvocations,
   className,
   defaultOpen = false,
+  timings,
 }: ToolInvocationProps) {
   const toolParts = toolInvocations.filter(
     (part) => part.type.startsWith("tool-") || part.type === "dynamic-tool"
   ) as unknown as ToolUIPart[]
-
   if (toolParts.length === 0) return null
 
   return (
-    <div className={cn("mb-4 flex w-full min-w-0 max-w-full flex-col", className)}>
+    <div className={cn("flex w-full min-w-0 max-w-full flex-col", className)}>
       {toolParts.map((tool, i) => (
         <ToolCard
           key={tool.toolCallId ?? `${tool.type}-${i}`}
           toolData={tool}
           defaultOpen={defaultOpen}
+          durationMs={tool.toolCallId ? timings?.[tool.toolCallId] : undefined}
         />
       ))}
     </div>
   )
 }
 
-// Dispatches to a dedicated per-tool renderer (compact, expandable, no raw
-// JSON) when one exists for this toolName; otherwise falls back to Elements'
-// generic ToolInput/ToolOutput JSON dump.
 function ToolCard({
   toolData,
   defaultOpen,
+  durationMs,
 }: {
   toolData: ToolUIPart
   defaultOpen?: boolean
+  durationMs?: number
 }) {
   const toolName =
     "toolName" in toolData
@@ -61,37 +141,25 @@ function ToolCard({
       : toolNameOf(toolData.type)
   const isRunning = toolData.state !== "output-available" && toolData.state !== "output-error"
   const Renderer = getToolRenderer(toolName)
-  const headerProps =
-    toolData.type === "dynamic-tool"
-      ? { type: toolData.type, state: toolData.state, toolName }
-      : { type: toolData.type, state: toolData.state }
-
-  const label = getToolLabel(toolName, isRunning)
-  const summary = getToolSummary(toolData.input)
-  const title = (
-    <span className="flex min-w-0 items-center gap-2">
-      {isRunning ? <Shimmer as="span">{label}</Shimmer> : <span>{label}</span>}
-      {summary && (
-        <span className="text-muted-foreground min-w-0 truncate font-mono text-xs font-normal">
-          {summary}
-        </span>
-      )}
-    </span>
-  )
 
   return (
-    <Tool defaultOpen={defaultOpen}>
-      <ToolHeader title={title} {...headerProps} />
-      <ToolContent>
-        {Renderer ? (
-          <Renderer toolName={toolName} toolData={toolData} />
-        ) : (
-          <>
-            <ToolInput input={toolData.input} />
-            <ToolOutput output={toolData.output} errorText={toolData.errorText} />
-          </>
-        )}
-      </ToolContent>
-    </Tool>
+    <StepRow
+      icon={<WrenchIcon />}
+      label={getToolLabel(toolName, isRunning)}
+      summary={getToolSummary(toolData.input)}
+      running={isRunning}
+      error={toolData.state === "output-error"}
+      durationMs={durationMs}
+      defaultOpen={defaultOpen}
+    >
+      {Renderer ? (
+        <Renderer toolName={toolName} toolData={toolData} />
+      ) : (
+        <>
+          <ToolInput input={toolData.input} />
+          <ToolOutput output={toolData.output} errorText={toolData.errorText} />
+        </>
+      )}
+    </StepRow>
   )
 }

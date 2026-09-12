@@ -6,6 +6,7 @@ import {
   CodeBlockGroup,
 } from "@/components/prompt-kit/code-block"
 import { useWorkspace } from "@/app/components/workspace/workspace-provider"
+import { CodeBlock as ToolCodeBlock } from "@/components/tool-ui/code-block"
 import type { ReactNode } from "react"
 import { CodeOutput, parseToolResult, type ToolBodyProps } from "./tool-shell"
 
@@ -161,7 +162,14 @@ export function FileTool({ toolName, toolData, className }: ToolBodyProps) {
             className="text-muted-foreground hover:text-foreground block truncate text-left font-mono text-xs"
           />
         )}
-        <CodeOutput code={(args?.content as string) ?? ""} language={languageFromPath(path)} />
+        <ToolCodeBlock
+          id={toolData.toolCallId}
+          code={(args?.content as string) ?? ""}
+          language={languageFromPath(path)}
+          filename={path}
+          lineNumbers="hidden"
+          maxCollapsedLines={24}
+        />
       </div>
     )
   } else if (toolName === "patch") {

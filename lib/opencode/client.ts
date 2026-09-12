@@ -17,6 +17,8 @@ type OpencodeRequestArgs = {
   /** Agent mode picker (build/plan/...), an OpenCode `Agent.name` from GET /agent. */
   agent?: string
   system?: string
+  /** Thinking effort variant name ("low"/"medium"/"high"), matching a `variants` entry in opencode.json. */
+  variant?: string
   signal?: AbortSignal
 }
 
@@ -29,6 +31,7 @@ export async function opencodeRequest({
   model,
   agent,
   system,
+  variant,
   signal,
 }: OpencodeRequestArgs): Promise<ReadableStream<Uint8Array>> {
   const eventRes = await fetch(`${BASE}/event`, {
@@ -53,6 +56,7 @@ export async function opencodeRequest({
       }
     }
     if (agent) body.agent = agent
+    if (variant) body.variant = variant
     const promptRes = await fetch(
       `${BASE}/session/${encodeURIComponent(sessionId)}/prompt_async`,
       {

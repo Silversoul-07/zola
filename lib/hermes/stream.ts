@@ -1,4 +1,5 @@
 import { createUIMessageStream, type UIMessage, type UIMessageStreamWriter } from "ai"
+import { turnData } from "@/lib/turn"
 
 // Maps Hermes Agent's `/v1/responses` SSE (OpenAI Responses API shape) to the
 // AI SDK v5+ UI message stream protocol. Emits writer.write() chunks;
@@ -45,6 +46,9 @@ async function writeHermesResponses(
 ): Promise<void> {
   const decoder = new TextDecoder()
   let textOpen = false
+  const startedAt = Date.now()
+  // No per-tool timing here: /v1/responses emits function_call and its
+  // function_call_output together after the tool ran, so the gap is transport.
   // Hermes doesn't send a call_id on function_call_output beyond what we
   // captured on the matching function_call, so args aren't needed again here.
 
@@ -110,6 +114,17 @@ async function writeHermesResponses(
       }
       case "response.completed": {
         closeTextIfOpen()
+        const usage = (data.response as { usage?: Record<string, number> } | undefined)
+          ?.usage
+        writer.write({
+          type: "data-turn",
+          id: "turn",
+          data: turnData(startedAt, {
+            inputTokens: usage?.input_tokens,
+            outputTokens: usage?.output_tokens,
+            totalTokens: usage?.total_tokens,
+          }),
+        })
         writer.write({ type: "finish" })
         break
       }

@@ -1,6 +1,7 @@
 "use client"
 
 import { ChatInput } from "@/app/components/chat-input/chat-input"
+import { turnFromParts } from "@/lib/turn"
 import { Conversation } from "@/app/components/chat/conversation"
 import { useModel } from "@/app/components/chat/use-model"
 import { useChatDraft } from "@/app/hooks/use-chat-draft"
@@ -123,6 +124,8 @@ export function Chat() {
     runtime,
     agentMode,
     setAgentMode,
+    reasoningEffort,
+    setReasoningEffort,
     submit,
     handleSuggestion,
     handleReload,
@@ -176,6 +179,9 @@ export function Chat() {
   )
 
   // Memoize the chat input props
+  const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant")
+  const turnUsage = turnFromParts(lastAssistant?.parts)?.usage
+
   const chatInputProps = useMemo(
     () => ({
       value: input,
@@ -199,6 +205,9 @@ export function Chat() {
       showAgentMode: runtime === "opencode",
       agentMode,
       onAgentModeChange: setAgentMode,
+      reasoningEffort,
+      onReasoningEffortChange: setReasoningEffort,
+      turnUsage,
     }),
     [
       input,
@@ -223,6 +232,9 @@ export function Chat() {
       runtime,
       agentMode,
       setAgentMode,
+      reasoningEffort,
+      setReasoningEffort,
+      turnUsage,
     ]
   )
 

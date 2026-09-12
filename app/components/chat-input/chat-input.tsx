@@ -18,6 +18,9 @@ import { AgentModeSelect } from "./agent-mode-select"
 import { ButtonFileUpload } from "./button-file-upload"
 import { ButtonSearch } from "./button-search"
 import { FileList } from "./file-list"
+import { ThinkingEffortSelect } from "./thinking-effort-select"
+import { ContextMeter } from "./context-meter"
+import type { LanguageModelUsage } from "ai"
 
 type ChatInputProps = {
   value: string
@@ -41,6 +44,9 @@ type ChatInputProps = {
   showAgentMode?: boolean
   agentMode?: string
   onAgentModeChange?: (mode: string) => void
+  reasoningEffort?: string
+  onReasoningEffortChange?: (effort: string) => void
+  turnUsage?: LanguageModelUsage
 }
 
 export function ChatInput({
@@ -64,6 +70,9 @@ export function ChatInput({
   showAgentMode,
   agentMode,
   onAgentModeChange,
+  reasoningEffort,
+  onReasoningEffortChange,
+  turnUsage,
 }: ChatInputProps) {
   const selectModelConfig = getModelInfo(selectedModel)
   const hasSearchSupport = Boolean(selectModelConfig?.webSearch)
@@ -208,6 +217,12 @@ export function ChatInput({
                 isUserAuthenticated={isUserAuthenticated}
                 className="rounded-full"
               />
+              {onReasoningEffortChange ? (
+                <ThinkingEffortSelect
+                  value={reasoningEffort ?? "auto"}
+                  onChange={onReasoningEffortChange}
+                />
+              ) : null}
               {showAgentMode && onAgentModeChange ? (
                 <AgentModeSelect
                   value={agentMode || "build"}
@@ -222,6 +237,8 @@ export function ChatInput({
                 />
               ) : null}
             </div>
+            <div className="flex items-center gap-1">
+            <ContextMeter usage={turnUsage} modelId={selectedModel} />
             <PromptInputAction
               tooltip={status === "streaming" ? "Stop" : "Send"}
             >
@@ -240,6 +257,7 @@ export function ChatInput({
                 )}
               </Button>
             </PromptInputAction>
+            </div>
           </PromptInputActions>
         </PromptInput>
       </div>
