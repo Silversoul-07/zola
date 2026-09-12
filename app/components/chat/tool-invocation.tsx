@@ -72,7 +72,7 @@ function ToolCard({
     <span className="flex min-w-0 items-center gap-2">
       {isRunning ? <Shimmer as="span">{label}</Shimmer> : <span>{label}</span>}
       {summary && (
-        <span className="text-muted-foreground truncate font-mono text-xs font-normal">
+        <span className="text-muted-foreground min-w-0 truncate font-mono text-xs font-normal">
           {summary}
         </span>
       )}

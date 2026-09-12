@@ -1,9 +1,14 @@
 "use client"
 
-import { groupChatsByDate } from "@/app/components/history/utils"
-import { useBreakpoint } from "@/app/hooks/use-breakpoint"
 import { SettingsTrigger } from "@/app/components/layout/settings/settings-trigger"
+import { useBreakpoint } from "@/app/hooks/use-breakpoint"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Sidebar,
@@ -14,26 +19,38 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
 import { useChats } from "@/lib/chat-store/chats/provider"
 import { APP_NAME } from "@/lib/config"
+import { fetchClient } from "@/lib/fetch"
 import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
 import {
+  CaretDownIcon,
   ChatTeardropText,
+  DotsThreeIcon,
   GearSixIcon,
   SidebarSimpleIcon,
+  SignOut,
   X,
 } from "@phosphor-icons/react"
 import { useParams } from "next/navigation"
 import { useMemo } from "react"
-import { NavMain } from "./nav-main"
+import { HistoryTrigger } from "../../history/history-trigger"
+import { NavMain, sidebarRowTriggerClassName } from "./nav-main"
 import { SidebarItem } from "./sidebar-item"
-import { SidebarList } from "./sidebar-list"
 
 const iconButtonClassName =
   "text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-full bg-transparent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+
+const RECENT_CHATS_LIMIT = 12
+
+async function signOut() {
+  await fetchClient("/api/auth/logout", { method: "POST" })
+  window.location.assign("/auth")
+}
 
 export function AppSidebar() {
   const isMobile = useBreakpoint(768)
@@ -43,10 +60,12 @@ export function AppSidebar() {
   const params = useParams<{ chatId: string }>()
   const currentChatId = params.chatId
 
-  const groupedChats = useMemo(() => {
-    const result = groupChatsByDate(chats, "")
-    return result
-  }, [chats])
+  const unpinnedChats = useMemo(
+    () => chats.filter((chat) => !chat.pinned),
+    [chats]
+  )
+  const recentChats = unpinnedChats.slice(0, RECENT_CHATS_LIMIT)
+  const hasMoreChats = unpinnedChats.length > RECENT_CHATS_LIMIT
   const hasChats = chats.length > 0
 
   return (
@@ -57,9 +76,27 @@ export function AppSidebar() {
     >
       <SidebarHeader className="h-14 pl-3">
         <div className="flex h-full items-center justify-between pr-2">
-          <span className="text-primary truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
-            {APP_NAME}
-          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="text-primary hover:bg-muted flex min-w-0 items-center gap-1 rounded-md p-1 text-sm font-semibold transition-colors group-data-[collapsible=icon]:hidden"
+              >
+                <span className="truncate">{APP_NAME}</span>
+                <CaretDownIcon
+                  size={14}
+                  className="text-muted-foreground shrink-0"
+                />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-40">
+              <SettingsTrigger />
+              <DropdownMenuItem onClick={signOut}>
+                <SignOut className="size-4" />
+                <span>Sign out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {isMobile ? (
             <button
               type="button"
@@ -81,7 +118,7 @@ export function AppSidebar() {
           )}
         </div>
       </SidebarHeader>
-      <SidebarContent className="border-border/40 border-t">
+      <SidebarContent>
         <ScrollArea className="flex h-full px-3 [&>div>div]:!block">
           <NavMain />
           {isLoading ? (
@@ -106,15 +143,27 @@ export function AppSidebar() {
               )}
               <SidebarGroup className="p-0">
                 <SidebarGroupLabel>Chats</SidebarGroupLabel>
-                <SidebarGroupContent className="space-y-3">
-                  {groupedChats?.map((group) => (
-                    <SidebarList
-                      key={group.name}
-                      title={group.name}
-                      items={group.chats}
-                      currentChatId={currentChatId}
-                    />
-                  ))}
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {recentChats.map((chat) => (
+                      <SidebarItem
+                        key={chat.id}
+                        chat={chat}
+                        currentChatId={currentChatId}
+                      />
+                    ))}
+                    {hasMoreChats && (
+                      <SidebarMenuItem>
+                        <HistoryTrigger
+                          hasSidebar={false}
+                          classNameTrigger={sidebarRowTriggerClassName}
+                          icon={<DotsThreeIcon size={16} weight="bold" />}
+                          label={<span>More</span>}
+                          hasPopover={false}
+                        />
+                      </SidebarMenuItem>
+                    )}
+                  </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
             </div>
@@ -125,14 +174,14 @@ export function AppSidebar() {
                 className="text-muted-foreground mb-1 opacity-40"
               />
               <div className="text-muted-foreground text-center">
-                <p className="mb-1 text-base font-medium">No chats yet</p>
-                <p className="text-sm opacity-70">Start a new conversation</p>
+                <p className="mb-1 text-sm font-medium">No chats yet</p>
+                <p className="text-13 opacity-70">Start a new conversation</p>
               </div>
             </div>
           )}
         </ScrollArea>
       </SidebarContent>
-      <SidebarFooter className="border-border/40 mb-2 flex-row items-center justify-between border-t p-3">
+      <SidebarFooter className="mb-2 flex-row items-center justify-between p-3">
         <SettingsTrigger
           trigger={
             <button

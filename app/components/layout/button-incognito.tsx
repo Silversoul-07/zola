@@ -1,5 +1,6 @@
 "use client"
 
+import { Button } from "@/components/ui/button"
 import {
   Tooltip,
   TooltipContent,
@@ -20,20 +21,20 @@ export function ButtonIncognito({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => onToggle(!isSelected)}
           aria-pressed={isSelected}
-          aria-label="Private chat"
           className={cn(
-            "pointer-events-auto inline-flex size-9 items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
-            isSelected
-              ? "text-sky-500 bg-sky-500/10"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            "pointer-events-auto gap-1.5 rounded-lg",
+            isSelected &&
+              "text-sky-500 bg-sky-500/10 hover:bg-sky-500/10 hover:text-sky-500"
           )}
         >
           <EyeSlash className="size-4" />
-        </button>
+          {isSelected ? "Private on" : "Private"}
+        </Button>
       </TooltipTrigger>
       <TooltipContent>Private chat: not saved</TooltipContent>
     </Tooltip>

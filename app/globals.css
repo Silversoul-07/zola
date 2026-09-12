@@ -10,6 +10,12 @@
   --spacing-app-header: 56px;
   --spacing-input-area: 134px;
 
+  /* UI text scale (sidebar/history/header/chat-input): base 14px = text-sm,
+     secondary 13px = text-13, group labels 12px muted = text-xs + text-muted-foreground.
+     Row height 32px = h-8. Reuse these everywhere instead of one-off sizes. */
+  --text-13: 0.8125rem;
+  --text-13--line-height: 1.125rem;
+
   @keyframes loading-dots {
     0%,
     100% {

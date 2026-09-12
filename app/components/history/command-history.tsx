@@ -149,7 +149,7 @@ function CommandItemDelete({
       className="flex w-full items-center justify-between"
     >
       <div className="flex flex-1 items-center">
-        <span className="line-clamp-1 text-base font-normal">{chat.title}</span>
+        <span className="line-clamp-1 text-sm font-normal">{chat.title}</span>
         <input
           type="text"
           className="sr-only hidden"
@@ -215,14 +215,14 @@ function CommandItemRow({
   return (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="line-clamp-1 text-base font-normal">
+        <span className="line-clamp-1 text-sm font-normal">
           {chat?.title || "Untitled Chat"}
         </span>
         {isCurrentChat && <Badge variant="outline">current</Badge>}
       </div>
 
       <div className="relative flex min-w-[140px] flex-shrink-0 items-center justify-end">
-        <div className="text-muted-foreground mr-2 text-xs transition-opacity duration-200 group-hover:opacity-0">
+        <div className="text-muted-foreground text-13 mr-2 transition-opacity duration-200 group-hover:opacity-0">
           {formatDate(chat.updated_at || chat.created_at)}
         </div>
 
@@ -571,11 +571,7 @@ export function CommandHistory({
         open={isOpen}
         title="Chat History"
         description="Search through your past conversations"
-        className={cn(
-          preferences.showConversationPreviews
-            ? "sm:max-w-[900px]"
-            : "sm:max-w-3xl"
-        )}
+        className="sm:max-w-lg"
       >
         <CommandInput
           placeholder="Search history..."

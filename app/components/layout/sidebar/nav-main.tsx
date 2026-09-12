@@ -22,10 +22,10 @@ const NAV_ITEMS = [
   { href: "/scheduled", label: "Scheduled", icon: ClockCounterClockwiseIcon },
 ]
 
-// Mirrors sidebarMenuButtonVariants({ size: "sm" }) since HistoryTrigger
+// Mirrors sidebarMenuButtonVariants({ size: "default" }) since HistoryTrigger
 // renders its own <button> and can't be wrapped with SidebarMenuButton asChild.
-const searchTriggerClassName =
-  "peer/menu-button bg-transparent text-sidebar-foreground flex h-7 w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-xs outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>svg]:size-4 [&>svg]:shrink-0"
+export const sidebarRowTriggerClassName =
+  "peer/menu-button bg-transparent text-sidebar-foreground flex h-8 w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>svg]:size-4 [&>svg]:shrink-0"
 
 export function NavMain() {
   const pathname = usePathname()
@@ -36,7 +36,6 @@ export function NavMain() {
         <SidebarMenuButton
           asChild
           isActive={pathname === "/"}
-          size="sm"
           tooltip="New chat"
         >
           <Link href="/" prefetch>
@@ -48,7 +47,7 @@ export function NavMain() {
       <SidebarMenuItem>
         <HistoryTrigger
           hasSidebar={false}
-          classNameTrigger={searchTriggerClassName}
+          classNameTrigger={sidebarRowTriggerClassName}
           icon={<MagnifyingGlass size={16} />}
           label={<span>Search</span>}
           hasPopover={false}
@@ -58,12 +57,7 @@ export function NavMain() {
         const isActive = pathname?.startsWith(item.href)
         return (
           <SidebarMenuItem key={item.href}>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive}
-              size="sm"
-              tooltip={item.label}
-            >
+            <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
               <Link href={item.href} prefetch>
                 <item.icon size={16} />
                 <span>{item.label}</span>

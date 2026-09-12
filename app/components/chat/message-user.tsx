@@ -195,7 +195,7 @@ export function MessageUser({
       ) : (
         <MessageContent
           ref={contentRef}
-          className="bg-accent prose dark:prose-invert relative max-w-[70%] rounded-3xl px-5 py-2.5"
+          className="bg-accent prose dark:prose-invert relative max-w-[75%] rounded-3xl px-5 py-2.5"
         >
           <MessageResponse
             components={{

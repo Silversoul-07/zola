@@ -146,7 +146,7 @@ export function SidebarItem({ chat, currentChatId }: SidebarItemProps) {
         </div>
       ) : (
         <>
-          <SidebarMenuButton asChild isActive={isActive} size="sm">
+          <SidebarMenuButton asChild isActive={isActive}>
             <Link
               href={`/c/${chat.id}`}
               prefetch

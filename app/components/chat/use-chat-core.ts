@@ -173,12 +173,19 @@ export function useChatCore({
   }, [rawStop, runtime, chatId])
 
   // useChat v5+ reads `messages` only once; the provider loads history
-  // (cache, then DB) after mount, so push each load into the chat state.
+  // (cache, then DB) after mount. Push a load into the chat state only when
+  // the chat changed or the chat state is still empty. Replacing on every
+  // provider update dropped the optimistic user message after a reply.
+  const loadedChatIdRef = useRef<string | null | undefined>(undefined)
   useEffect(() => {
     if (status === "streaming" || status === "submitted") return
-    setMessages(initialMessages)
+    const chatChanged = loadedChatIdRef.current !== chatId
+    if (chatChanged || (messages.length === 0 && initialMessages.length > 0)) {
+      loadedChatIdRef.current = chatId
+      setMessages(initialMessages)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMessages])
+  }, [initialMessages, chatId])
 
   // Handle search params on mount
   useEffect(() => {
@@ -237,6 +244,9 @@ export function useChatCore({
       }
 
       const currentChatId = await ensureChatExists(uid, submittedInput, incognito)
+      // The live chat state now belongs to this chat; the history sync
+      // effect must not replace it when the URL switches to /c/<id>.
+      loadedChatIdRef.current = currentChatId
       if (!currentChatId) {
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
         cleanupOptimisticAttachments(optimisticAttachments)
@@ -416,6 +426,7 @@ export function useChatCore({
         }
 
         const currentChatId = await ensureChatExists(uid, newContent)
+        loadedChatIdRef.current = currentChatId
         if (!currentChatId) {
           setMessages(originalMessages)
           return
@@ -509,6 +520,7 @@ export function useChatCore({
         }
 
         const currentChatId = await ensureChatExists(uid, suggestion)
+        loadedChatIdRef.current = currentChatId
 
         if (!currentChatId) {
           setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))

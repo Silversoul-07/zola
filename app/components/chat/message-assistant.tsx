@@ -17,6 +17,7 @@ import { getToolName, isToolUIPart, type UIMessage } from "ai"
 import { ArrowClockwise, Check, Copy } from "@phosphor-icons/react"
 import { useCallback, useRef } from "react"
 import { getSources } from "./get-sources"
+import { Loader } from "./loader"
 import { type OpencodePermissionData, PermissionCard } from "./permission-card"
 import { QuoteButton } from "./quote-button"
 import { SearchImages } from "./search-images"
@@ -76,6 +77,14 @@ export function MessageAssistant({
         const imagesContent = output?.content?.find((c) => c.type === "images")
         return imagesContent?.results ?? []
       }) ?? []
+  const hasVisiblePart =
+    Boolean(reasoningPart?.text) ||
+    toolInvocationParts.length > 0 ||
+    permissionParts.length > 0 ||
+    searchImageResults.length > 0 ||
+    !contentNullOrEmpty
+  const showThinking =
+    (status === "submitted" || status === "streaming") && !hasVisiblePart
 
   const isQuoteEnabled = !preferences.multiModelEnabled
   const messageRef = useRef<HTMLDivElement>(null)
@@ -107,6 +116,8 @@ export function MessageAssistant({
         )}
         {...(isQuoteEnabled && { "data-message-id": messageId })}
       >
+        {showThinking && <Loader />}
+
         {reasoningPart && reasoningPart.text && (
           <Reasoning isStreaming={status === "streaming"}>
             <ReasoningTrigger />

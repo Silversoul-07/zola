@@ -6,10 +6,12 @@ import { HeaderSidebarTrigger } from "@/app/components/layout/header-sidebar-tri
 import { useIncognito } from "@/app/components/layout/incognito-provider"
 import { useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import { usePathname } from "next/navigation"
 
 export function Header({ hasSidebar }: { hasSidebar: boolean }) {
   const { open } = useSidebar()
   const { incognito, setIncognito } = useIncognito()
+  const isHome = usePathname() === "/"
 
   return (
     <header className="h-app-header pointer-events-none fixed top-0 right-0 left-0 z-50">
@@ -24,11 +26,13 @@ export function Header({ hasSidebar }: { hasSidebar: boolean }) {
           <HeaderSidebarTrigger
             className={cn(hasSidebar && open && "md:hidden")}
           />
-          <AgentPicker />
+          {isHome && <AgentPicker />}
         </div>
-        <div className="pointer-events-auto flex items-center">
-          <ButtonIncognito isSelected={incognito} onToggle={setIncognito} />
-        </div>
+        {isHome && (
+          <div className="pointer-events-auto flex items-center">
+            <ButtonIncognito isSelected={incognito} onToggle={setIncognito} />
+          </div>
+        )}
       </div>
     </header>
   )
