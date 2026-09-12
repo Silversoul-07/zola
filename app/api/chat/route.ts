@@ -1,4 +1,6 @@
 import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
+import { hermesRequest } from "@/lib/hermes/client"
+import { hermesResponsesToDataStream } from "@/lib/hermes/stream"
 import { getAllModels } from "@/lib/models"
 import { getProviderForModel } from "@/lib/openproviders/provider-map"
 import type { ProviderWithoutOllama } from "@/lib/user-keys"
@@ -94,6 +96,29 @@ export async function POST(req: Request) {
     }
 
     const effectiveSystemPrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT
+
+    // Hermes Agent runs its own model + tools server-side on our VM; bypass
+    // streamText entirely and stream its /v1/responses SSE straight through.
+    if (model.startsWith("hermes:")) {
+      const hermesRes = await hermesRequest({
+        messages,
+        model: model.slice("hermes:".length),
+        chatId,
+        systemPrompt: effectiveSystemPrompt,
+      })
+
+      return new Response(
+        hermesResponsesToDataStream(hermesRes.body as ReadableStream<Uint8Array>, {
+          messageId: crypto.randomUUID(),
+        }),
+        {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-Vercel-AI-Data-Stream": "v1",
+          },
+        }
+      )
+    }
 
     let apiKey: string | undefined
     if (isAuthenticated && userId) {
