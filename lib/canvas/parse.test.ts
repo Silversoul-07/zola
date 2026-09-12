@@ -34,3 +34,24 @@ assert.equal(noTitle[0].kind, "canvas")
 assert.equal((noTitle[0] as { title: string }).title, "Untitled")
 
 console.log("parse.test.ts OK")
+
+// nested code fences inside the document do not end the canvas
+const nested = parseCanvasSegments(
+  'intro\n```canvas title="Doc"\n# H\n\n```\n$ ls\n```\n\ntext\n\n```bash\necho hi\n```\n```\nafter'
+)
+assert.equal(nested.length, 3)
+assert.equal(nested[1].kind, "canvas")
+assert.equal(
+  (nested[1] as { content: string }).content,
+  "# H\n\n```\n$ ls\n```\n\ntext\n\n```bash\necho hi\n```"
+)
+assert.equal((nested[1] as { complete: boolean }).complete, true)
+assert.deepEqual(nested[2], { kind: "text", text: "after" })
+
+// still streaming: a nested block is open, so the canvas is incomplete
+const open = parseCanvasSegments('```canvas title="Doc"\nhead\n```bash\necho')
+assert.equal(open.length, 1)
+assert.equal((open[0] as { complete: boolean }).complete, false)
+
+console.log("parse tests ok")
+

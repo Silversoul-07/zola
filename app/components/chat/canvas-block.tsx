@@ -32,6 +32,10 @@ export function CanvasBlock({
   const { tabs, openCanvas, updateCanvasContent } = useWorkspace()
   const upsertedRef = useRef(false)
   const canvasRef = useRef<UpsertedCanvas | null>(null)
+  // True only for a block written in this session; a reloaded chat renders
+  // its cards without popping the pane open.
+  const liveRef = useRef(false)
+  if (streaming) liveRef.current = true
 
   useEffect(() => {
     if (!complete || streaming || upsertedRef.current || !chatId) return
@@ -60,7 +64,9 @@ export function CanvasBlock({
         const canvas = (await res.json()) as UpsertedCanvas
         canvasRef.current = canvas
 
-        if (tabs.some((t) => t.kind === "canvas" && t.id === canvas.id)) {
+        if (liveRef.current) {
+          openCanvas(canvas.id, title, content)
+        } else if (tabs.some((t) => t.kind === "canvas" && t.id === canvas.id)) {
           updateCanvasContent(canvas.id, content, title)
         }
       } catch {

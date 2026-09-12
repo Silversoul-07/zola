@@ -14,6 +14,7 @@ Rules:
 - Always include the ENTIRE document in the block, not a diff or excerpt — it replaces whatever is currently in the canvas.
 - Only one canvas block per reply.
 - Do not add anything else to the protocol: no extra commentary inside the fence, no code fences other than "canvas" for the document itself.
+- Inside the document, write code blocks with ~~~ fences (not backticks), so they cannot be mistaken for the end of the canvas block.
 - You may still write normal prose before or after the block.`
 
 export function canvasSystemPromptAddendum(currentTitle?: string): string {
