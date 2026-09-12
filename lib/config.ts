@@ -14,10 +14,18 @@ export const REMAINING_QUERY_ALERT_THRESHOLD = 2
 export const DAILY_FILE_UPLOAD_LIMIT = 5
 export const DAILY_LIMIT_PRO_MODELS = 500
 
-// CLOUD9: every model we expose is served by OpenRouter (one key), plus the
-// Hermes agent (server-side key, tools run on our VM).
+// CLOUD9: chat-box models are LiteLLM lanes (our own gateway, one key), plus
+// the existing OpenRouter ids kept around for direct mode. Hermes agent runs
+// server-side and is selected via the header AgentPicker, not this list.
 export const ALLOWED_MODEL_IDS = [
-  "hermes:hermes-agent",
+  "deepseek-v4-flash",
+  "deepseek-v4-pro",
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-2.5-pro",
+  "gpt-oss-120b",
+  "mistral-small-latest",
+  "nemotron-3.5-lightning",
   "openrouter:anthropic/claude-sonnet-5",
   "openrouter:anthropic/claude-opus-5",
   "openrouter:openai/gpt-5.5",
@@ -35,22 +43,19 @@ export const FREE_MODELS_IDS = [
   "pixtral-large-latest",
   "mistral-large-latest",
   "gpt-4.1-nano",
-  // Hermes always uses our server-side HERMES_API_KEY, never a per-user key.
-  "hermes:hermes-agent",
 ]
 
-export const MODEL_DEFAULT = "hermes:hermes-agent"
+export const MODEL_DEFAULT = "deepseek-v4-flash"
 
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Zola"
 export const APP_DOMAIN = "https://zola.chat"
 
-// Agent picker (header): NEXT_PUBLIC_AGENTS is a JSON array of
-// { id, name, model }. Selecting an agent sets the chat model to `model`.
-export type AgentConfig = { id: string; name: string; model: string }
+// Agent picker (header): NEXT_PUBLIC_AGENTS is a JSON array of { id, name }.
+// Selecting an agent routes the chat through Hermes (see app/api/chat/route.ts);
+// the model itself is still chosen independently via the chat-box model picker.
+export type AgentConfig = { id: string; name: string }
 
-const DEFAULT_AGENTS: AgentConfig[] = [
-  { id: "hermes", name: "Hermes Agent", model: "hermes:hermes-agent" },
-]
+const DEFAULT_AGENTS: AgentConfig[] = [{ id: "hermes", name: "Hermes Agent" }]
 
 function parseAgents(): AgentConfig[] {
   const raw = process.env.NEXT_PUBLIC_AGENTS
@@ -65,6 +70,14 @@ function parseAgents(): AgentConfig[] {
 
 export const AGENTS: AgentConfig[] = parseAgents()
 
+// Resolves the header AgentPicker's effective selection: an explicit choice
+// (including "none"), or the default (first agent) when nothing was chosen yet.
+export function getEffectiveAgentId(
+  selectedAgentId: string | undefined
+): string | undefined {
+  return selectedAgentId || AGENTS[0]?.id
+}
+
 // Model picker (chat input): NEXT_PUBLIC_ALLOWED_MODELS is a comma-separated
 // list of model ids. Defaults to ALLOWED_MODEL_IDS above, plus agent models.
 export const ALLOWED_MODEL_IDS_ENV = process.env.NEXT_PUBLIC_ALLOWED_MODELS?.split(
@@ -78,7 +91,8 @@ export const EFFECTIVE_ALLOWED_MODEL_IDS = Array.from(
     ...(ALLOWED_MODEL_IDS_ENV && ALLOWED_MODEL_IDS_ENV.length > 0
       ? ALLOWED_MODEL_IDS_ENV
       : ALLOWED_MODEL_IDS),
-    ...AGENTS.map((agent) => agent.model),
+    // "Agent default" only makes sense once an agent exists to default to.
+    ...(AGENTS.length > 0 ? ["hermes-agent"] : []),
   ])
 )
 

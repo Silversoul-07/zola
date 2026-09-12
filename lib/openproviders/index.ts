@@ -9,6 +9,7 @@ import { getProviderForModel } from "./provider-map"
 import type {
   AnthropicModel,
   GeminiModel,
+  LiteLLMModel,
   MistralModel,
   OllamaModel,
   OpenAIModel,
@@ -24,6 +25,7 @@ type PerplexityProviderSettings = Parameters<typeof perplexity>[0]
 type AnthropicProviderSettings = Parameters<typeof anthropic>[1]
 type XaiProviderSettings = Parameters<typeof xai>[1]
 type OllamaProviderSettings = OpenAIChatSettings // Ollama uses OpenAI-compatible API
+type LiteLLMProviderSettings = OpenAIChatSettings // LiteLLM uses OpenAI-compatible API
 
 type ModelSettings<T extends SupportedModel> = T extends OpenAIModel
   ? OpenAIChatSettings
@@ -39,7 +41,9 @@ type ModelSettings<T extends SupportedModel> = T extends OpenAIModel
             ? XaiProviderSettings
             : T extends OllamaModel
               ? OllamaProviderSettings
-              : never
+              : T extends LiteLLMModel
+                ? LiteLLMProviderSettings
+                : never
 
 export type OpenProvidersOptions<T extends SupportedModel> = ModelSettings<T>
 
@@ -63,6 +67,15 @@ const createOllamaProvider = () => {
     baseURL: getOllamaBaseURL(),
     apiKey: "ollama", // Ollama doesn't require a real API key
     name: "ollama",
+  })
+}
+
+// Create LiteLLM provider instance (our own gateway, OpenAI-compatible)
+const createLiteLLMProvider = () => {
+  return createOpenAI({
+    baseURL: `${process.env.LITELLM_URL}/v1`,
+    apiKey: process.env.LITELLM_MASTER_KEY,
+    name: "litellm",
   })
 }
 
@@ -153,6 +166,14 @@ export function openproviders<T extends SupportedModel>(
     return ollamaProvider(
       modelId as OllamaModel,
       settings as OllamaProviderSettings
+    )
+  }
+
+  if (provider === "litellm") {
+    const litellmProvider = createLiteLLMProvider()
+    return litellmProvider(
+      modelId as LiteLLMModel,
+      settings as LiteLLMProviderSettings
     )
   }
 

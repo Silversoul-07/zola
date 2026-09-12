@@ -44,6 +44,7 @@ export async function getEffectiveApiKey(
     xai: env.XAI_API_KEY,
     openrouter: env.OPENROUTER_API_KEY,
     hermes: env.HERMES_API_KEY,
+    litellm: env.LITELLM_MASTER_KEY,
   }
 
   return envKeyMap[provider] || null

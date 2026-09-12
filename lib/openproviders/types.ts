@@ -121,6 +121,20 @@ export type OpenRouterModel =
   | "openrouter:x-ai/grok-3-mini-beta"
   | "openrouter:google/gemini-2.5-flash-preview-05-20"
 
+// LiteLLM lanes: our own gateway (LITELLM_URL), OpenAI-compatible. "hermes-agent"
+// is a virtual entry meaning "let Hermes pick its own default", never actually
+// sent through this provider (see app/api/chat/route.ts agent branch).
+export type LiteLLMModel =
+  | "deepseek-v4-flash"
+  | "deepseek-v4-pro"
+  | "gemini-3.5-flash"
+  | "gemini-3.5-flash-lite"
+  | "gemini-2.5-pro"
+  | "gpt-oss-120b"
+  | "mistral-small-latest"
+  | "nemotron-3.5-lightning"
+  | "hermes-agent"
+
 // Static Ollama models for type safety
 export type StaticOllamaModel = "llama3.2:latest" | "qwen2.5-coder:latest"
 
@@ -137,6 +151,7 @@ export type Provider =
   | "ollama"
   | "openrouter"
   | "hermes"
+  | "litellm"
 
 export type SupportedModel =
   | OpenAIModel
@@ -147,3 +162,4 @@ export type SupportedModel =
   | XaiModel
   | OllamaModel
   | OpenRouterModel
+  | LiteLLMModel
