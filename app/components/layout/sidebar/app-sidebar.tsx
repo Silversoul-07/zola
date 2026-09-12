@@ -9,7 +9,11 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
+  SidebarMenu,
   useSidebar,
 } from "@/components/ui/sidebar"
 import { useChats } from "@/lib/chat-store/chats/provider"
@@ -19,16 +23,14 @@ import { cn } from "@/lib/utils"
 import {
   ChatTeardropText,
   GearSixIcon,
-  MagnifyingGlass,
   SidebarSimpleIcon,
   X,
 } from "@phosphor-icons/react"
-import { Pin } from "lucide-react"
 import { useParams } from "next/navigation"
 import { useMemo } from "react"
-import { HistoryTrigger } from "../../history/history-trigger"
+import { NavMain } from "./nav-main"
+import { SidebarItem } from "./sidebar-item"
 import { SidebarList } from "./sidebar-list"
-import { SidebarNav } from "./sidebar-nav"
 
 const iconButtonClassName =
   "text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-full bg-transparent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
@@ -58,64 +60,63 @@ export function AppSidebar() {
           <span className="text-primary truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
             {APP_NAME}
           </span>
-          <div className="flex items-center gap-1">
-            <HistoryTrigger
-              hasSidebar={false}
-              classNameTrigger={cn(
-                iconButtonClassName,
-                "group-data-[collapsible=icon]:hidden"
-              )}
-              icon={<MagnifyingGlass size={18} />}
-              hasPopover={false}
-            />
-            {isMobile ? (
-              <button
-                type="button"
-                onClick={() => setOpenMobile(false)}
-                aria-label="Close sidebar"
-                className={iconButtonClassName}
-              >
-                <X size={20} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                aria-label="Toggle sidebar"
-                className={iconButtonClassName}
-              >
-                <SidebarSimpleIcon size={20} />
-              </button>
-            )}
-          </div>
+          {isMobile ? (
+            <button
+              type="button"
+              onClick={() => setOpenMobile(false)}
+              aria-label="Close sidebar"
+              className={iconButtonClassName}
+            >
+              <X size={20} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label="Toggle sidebar"
+              className={iconButtonClassName}
+            >
+              <SidebarSimpleIcon size={20} />
+            </button>
+          )}
         </div>
       </SidebarHeader>
       <SidebarContent className="border-border/40 border-t">
         <ScrollArea className="flex h-full px-3 [&>div>div]:!block">
-          <SidebarNav />
+          <NavMain />
           {isLoading ? (
             <div className="h-full" />
           ) : hasChats ? (
-            <div className="space-y-5 group-data-[collapsible=icon]:hidden">
+            <div className="space-y-3 group-data-[collapsible=icon]:hidden">
               {pinnedChats.length > 0 && (
-                <div className="space-y-5">
-                  <SidebarList
-                    key="pinned"
-                    title="Pinned"
-                    icon={<Pin className="size-3" />}
-                    items={pinnedChats}
-                    currentChatId={currentChatId}
-                  />
-                </div>
+                <SidebarGroup className="p-0">
+                  <SidebarGroupLabel>Pinned</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {pinnedChats.map((chat) => (
+                        <SidebarItem
+                          key={chat.id}
+                          chat={chat}
+                          currentChatId={currentChatId}
+                        />
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
               )}
-              {groupedChats?.map((group) => (
-                <SidebarList
-                  key={group.name}
-                  title={group.name}
-                  items={group.chats}
-                  currentChatId={currentChatId}
-                />
-              ))}
+              <SidebarGroup className="p-0">
+                <SidebarGroupLabel>Chats</SidebarGroupLabel>
+                <SidebarGroupContent className="space-y-3">
+                  {groupedChats?.map((group) => (
+                    <SidebarList
+                      key={group.name}
+                      title={group.name}
+                      items={group.chats}
+                      currentChatId={currentChatId}
+                    />
+                  ))}
+                </SidebarGroupContent>
+              </SidebarGroup>
             </div>
           ) : (
             <div className="flex h-[calc(100vh-160px)] flex-col items-center justify-center group-data-[collapsible=icon]:hidden">

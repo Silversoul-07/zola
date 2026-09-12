@@ -1,8 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { APP_NAME } from "@/lib/config"
 import { useState } from "react"
-import { HeaderGoBack } from "../components/header-go-back"
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
@@ -39,60 +41,49 @@ export default function LoginPage() {
 
   return (
     <div className="bg-background flex h-dvh w-full flex-col">
-      <HeaderGoBack href="/" />
 
-      <main className="flex flex-1 flex-col items-center justify-center px-4 sm:px-6">
-        <div className="w-full max-w-md space-y-8">
-          <div className="text-center">
-            <h1 className="text-foreground text-3xl font-medium tracking-tight sm:text-4xl">
-              Welcome back
-            </h1>
-            <p className="text-muted-foreground mt-3">
-              Sign in with your username and password.
-            </p>
+      <main className="flex flex-1 flex-col items-center justify-center gap-6 p-6 md:p-10">
+        <div className="w-full max-w-sm">
+          <div className="flex flex-col gap-6">
+            <form onSubmit={handleSubmit}>
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <h1 className="text-xl font-bold">Sign in to {APP_NAME}</h1>
+                  <p className="text-muted-foreground text-sm">
+                    Sign in with your username and password.
+                  </p>
+                </div>
+                {error && (
+                  <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
+                    {error}
+                  </div>
+                )}
+                <div className="grid gap-3">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    required
+                  />
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isPending}>
+                  {isPending ? "Signing in..." : "Sign in"}
+                </Button>
+              </div>
+            </form>
           </div>
-          {error && (
-            <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
-              {error}
-            </div>
-          )}
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="username" className="text-foreground text-sm">
-                Username
-              </label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                autoComplete="username"
-                required
-                className="border-border bg-background text-foreground w-full rounded-md border px-3 py-2 text-base outline-hidden"
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-foreground text-sm">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="border-border bg-background text-foreground w-full rounded-md border px-3 py-2 text-base outline-hidden"
-              />
-            </div>
-            <Button
-              type="submit"
-              variant="secondary"
-              className="w-full text-base"
-              size="lg"
-              disabled={isPending}
-            >
-              {isPending ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
         </div>
       </main>
 

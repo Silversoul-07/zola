@@ -5,6 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { SidebarMenuAction } from "@/components/ui/sidebar"
 import { useChats } from "@/lib/chat-store/chats/provider"
 import { useMessages } from "@/lib/chat-store/messages/provider"
 import { useChatSession } from "@/lib/chat-store/session/provider"
@@ -46,12 +47,10 @@ export function SidebarItemMenu({
         onOpenChange={onMenuOpenChange}
       >
         <DropdownMenuTrigger asChild>
-          <button
-            className="hover:bg-secondary flex size-7 items-center justify-center rounded-md p-1 transition-colors duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <DotsThree size={18} className="text-primary" weight="bold" />
-          </button>
+          <SidebarMenuAction showOnHover onClick={(e) => e.stopPropagation()}>
+            <DotsThree size={16} weight="bold" />
+            <span className="sr-only">More</span>
+          </SidebarMenuAction>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuItem
