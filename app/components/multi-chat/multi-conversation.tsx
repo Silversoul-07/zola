@@ -164,14 +164,19 @@ export function MultiModelConversation({
                           : "max-w-3xl"
                       )}
                     >
-                      <div className={cn("overflow-x-auto pl-6")}>
-                        <div className="flex gap-4">
+                      {/* Bug fix (narrow-width layout): fixed min-w-[320px]
+                          cards inside overflow-x-auto pushed the view off
+                          screen on mobile with no way to read a full
+                          response. Stack cards full-width below sm, keep
+                          the horizontal scroll strip from sm up. */}
+                      <div className={cn("sm:overflow-x-auto sm:pl-6")}>
+                        <div className="flex flex-col gap-4 sm:flex-row">
                           {(groupResponses[groupIndex] || group.responses).map(
                             (response) => {
                               return (
                                 <div
                                   key={response.model}
-                                  className="max-w-[420px] min-w-[320px] flex-shrink-0"
+                                  className="w-full flex-shrink-0 sm:max-w-[420px] sm:min-w-[320px]"
                                 >
                                   <ResponseCard
                                     response={response}
@@ -182,7 +187,7 @@ export function MultiModelConversation({
                             }
                           )}
                           {/* Spacer to create scroll padding - only when more than 2 items */}
-                          <div className="w-px flex-shrink-0" />
+                          <div className="hidden w-px flex-shrink-0 sm:block" />
                         </div>
                       </div>
                     </div>

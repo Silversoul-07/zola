@@ -70,8 +70,18 @@ export function useChatOperations({
     }
   }
 
-  const ensureChatExists = async (userId: string, input: string) => {
+  const ensureChatExists = async (
+    userId: string,
+    input: string,
+    incognito?: boolean
+  ) => {
     if (chatId) return chatId
+
+    // Incognito chats never touch the chats list (sidebar) or guest
+    // persistence: a client-only id is enough for the /api/chat request.
+    if (incognito) {
+      return `incognito-${crypto.randomUUID()}`
+    }
 
     if (!isAuthenticated) {
       const storedGuestChatId = localStorage.getItem("guestChatId")

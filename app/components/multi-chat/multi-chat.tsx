@@ -12,7 +12,7 @@ import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
 import { Message as MessageType } from "@ai-sdk/react"
 import { AnimatePresence, motion } from "motion/react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { MultiChatInput } from "./multi-chat-input"
 import { useMultiChat } from "./use-multi-chat"
 
@@ -80,9 +80,16 @@ export function MultiChat() {
     return availableModels.filter((model) => combined.includes(model.id))
   }, [availableModels, selectedModelIds, modelsFromPersisted])
 
-  if (selectedModelIds.length === 0 && modelsFromLastGroup.length > 0) {
-    setSelectedModelIds(modelsFromLastGroup)
-  }
+  // Bug fix: this used to call setSelectedModelIds directly during render,
+  // which re-runs on every render while the condition holds (e.g. right
+  // after the user clears all models) and could race with the sticky slot
+  // assignment in useMultiChat. Move the sync into an effect.
+  useEffect(() => {
+    if (selectedModelIds.length === 0 && modelsFromLastGroup.length > 0) {
+      setSelectedModelIds(modelsFromLastGroup)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelsFromLastGroup])
 
   const modelChats = useMultiChat(allModelsToMaintain)
   const systemPrompt = useMemo(

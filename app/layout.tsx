@@ -10,9 +10,9 @@ import { ModelProvider } from "@/lib/model-store/provider"
 import { TanstackQueryProvider } from "@/lib/tanstack-query/tanstack-query-provider"
 import { UserPreferencesProvider } from "@/lib/user-preference-store/provider"
 import { UserProvider } from "@/lib/user-store/provider"
+import { APP_NAME } from "@/lib/config"
 import { getUserProfile } from "@/lib/user/api"
 import { ThemeProvider } from "next-themes"
-import Script from "next/script"
 import { LayoutClient } from "./layout-client"
 
 const geistSans = Geist({
@@ -26,9 +26,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Zola",
-  description:
-    "Zola is the open-source interface for AI chat. Multi-model, BYOK-ready, and fully self-hostable. Use Claude, OpenAI, Gemini, local models, and more, all in one place.",
+  title: APP_NAME,
+  description: `${APP_NAME} is the open-source interface for AI chat. Multi-model, BYOK-ready, and fully self-hostable. Use Claude, OpenAI, Gemini, local models, and more, all in one place.`,
 }
 
 export default async function RootLayout({
@@ -36,19 +35,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const isDev = process.env.NODE_ENV === "development"
-  const isOfficialDeployment = process.env.ZOLA_OFFICIAL === "true"
   const userProfile = await getUserProfile()
 
   return (
     <html lang="en" suppressHydrationWarning>
-      {isOfficialDeployment ? (
-        <Script
-          defer
-          src="https://assets.onedollarstats.com/stonks.js"
-          {...(isDev ? { "data-debug": "zola.chat" } : {})}
-        />
-      ) : null}
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -68,7 +58,7 @@ export default async function RootLayout({
                     >
                       <ThemeProvider
                         attribute="class"
-                        defaultTheme="light"
+                        defaultTheme="system"
                         enableSystem
                         disableTransitionOnChange
                       >

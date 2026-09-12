@@ -29,6 +29,7 @@ interface UserPreferencesContextType {
   setMultiModelEnabled: (enabled: boolean) => void
   toggleModelVisibility: (modelId: string) => void
   isModelHidden: (modelId: string) => boolean
+  setSelectedAgentId: (agentId: string) => void
   isLoading: boolean
 }
 
@@ -224,6 +225,10 @@ export function UserPreferencesProvider({
     return (preferences.hiddenModels || []).includes(modelId)
   }
 
+  const setSelectedAgentId = (agentId: string) => {
+    updatePreferences({ selectedAgentId: agentId })
+  }
+
   return (
     <UserPreferencesContext.Provider
       value={{
@@ -235,6 +240,7 @@ export function UserPreferencesProvider({
         setMultiModelEnabled,
         toggleModelVisibility,
         isModelHidden,
+        setSelectedAgentId,
         isLoading,
       }}
     >

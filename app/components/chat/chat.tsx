@@ -19,11 +19,6 @@ import { useChatCore } from "./use-chat-core"
 import { useChatOperations } from "./use-chat-operations"
 import { useFileUpload } from "./use-file-upload"
 
-const FeedbackWidget = dynamic(
-  () => import("./feedback-widget").then((mod) => mod.FeedbackWidget),
-  { ssr: false }
-)
-
 const DialogAuth = dynamic(
   () => import("./dialog-auth").then((mod) => mod.DialogAuth),
   { ssr: false }
@@ -70,6 +65,7 @@ export function Chat() {
 
   // State to pass between hooks
   const [hasDialogAuth, setHasDialogAuth] = useState(false)
+  const [incognito, setIncognito] = useState(false)
   const isAuthenticated = useMemo(() => !!user?.id, [user?.id])
   const systemPrompt = useMemo(
     () => user?.system_prompt || SYSTEM_PROMPT_DEFAULT,
@@ -133,6 +129,7 @@ export function Chat() {
     selectedModel,
     clearDraft,
     bumpChat,
+    incognito,
   })
 
   // Memoize the conversation props to prevent unnecessary rerenders
@@ -178,6 +175,8 @@ export function Chat() {
       setEnableSearch,
       enableSearch,
       quotedText,
+      incognito,
+      setIncognito,
     }),
     [
       input,
@@ -199,6 +198,7 @@ export function Chat() {
       setEnableSearch,
       enableSearch,
       quotedText,
+      incognito,
     ]
   )
 
@@ -225,6 +225,12 @@ export function Chat() {
       )}
     >
       <DialogAuth open={hasDialogAuth} setOpen={setHasDialogAuth} />
+
+      {incognito && (
+        <div className="bg-muted text-muted-foreground pointer-events-none fixed top-14 left-1/2 z-40 -translate-x-1/2 rounded-full px-3 py-1 text-xs">
+          Incognito: not saved
+        </div>
+      )}
 
       <AnimatePresence initial={false} mode="popLayout">
         {showOnboarding ? (
@@ -265,8 +271,6 @@ export function Chat() {
       >
         <ChatInput {...chatInputProps} />
       </motion.div>
-
-      <FeedbackWidget authUserId={user?.id} />
     </div>
   )
 }

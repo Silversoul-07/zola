@@ -25,7 +25,11 @@ type UseChatCoreProps = {
   setFiles: (files: File[]) => void
   checkLimitsAndNotify: (uid: string) => Promise<boolean>
   cleanupOptimisticAttachments: (attachments?: Array<{ url?: string }>) => void
-  ensureChatExists: (uid: string, input: string) => Promise<string | null>
+  ensureChatExists: (
+    uid: string,
+    input: string,
+    incognito?: boolean
+  ) => Promise<string | null>
   handleFileUploads: (
     uid: string,
     chatId: string
@@ -33,6 +37,7 @@ type UseChatCoreProps = {
   selectedModel: string
   clearDraft: () => void
   bumpChat: (chatId: string) => void
+  incognito?: boolean
 }
 
 export function useChatCore({
@@ -51,6 +56,7 @@ export function useChatCore({
   selectedModel,
   clearDraft,
   bumpChat,
+  incognito = false,
 }: UseChatCoreProps) {
   // State management
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -178,7 +184,7 @@ export function useChatCore({
         return
       }
 
-      const currentChatId = await ensureChatExists(uid, input)
+      const currentChatId = await ensureChatExists(uid, input, incognito)
       if (!currentChatId) {
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
         cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
@@ -217,6 +223,7 @@ export function useChatCore({
           isAuthenticated,
           systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
           enableSearch,
+          incognito,
         },
         experimental_attachments: attachments || undefined,
       }
@@ -224,10 +231,12 @@ export function useChatCore({
       handleSubmit(undefined, options)
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
       cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
-      cacheAndAddMessage(optimisticMessage)
+      if (!incognito) {
+        cacheAndAddMessage(optimisticMessage)
+      }
       clearDraft()
 
-      if (messages.length > 0) {
+      if (messages.length > 0 && !incognito) {
         bumpChat(currentChatId)
       }
     } catch {
@@ -259,6 +268,7 @@ export function useChatCore({
     messages.length,
     bumpChat,
     setIsSubmitting,
+    incognito,
   ])
 
   const submitEdit = useCallback(
