@@ -8,6 +8,7 @@ import { useModel } from "@/app/components/chat/use-model"
 import { ProjectChatItem } from "@/app/components/layout/sidebar/project-chat-item"
 import { toast } from "@/components/ui/toast"
 import { useChats } from "@/lib/chat-store/chats/provider"
+import type { ZolaUIMessage } from "@/lib/chat-store/messages/api"
 import { useMessages } from "@/lib/chat-store/messages/provider"
 import { MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { Attachment } from "@/lib/file-handling"
@@ -15,6 +16,7 @@ import { API_ROUTE_CHAT } from "@/lib/routes"
 import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
 import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport, type FileUIPart } from "ai"
 import { ChatCircleIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "motion/react"
@@ -32,10 +34,25 @@ type ProjectViewProps = {
   projectId: string
 }
 
+function attachmentsToFileParts(attachments?: Attachment[] | null): FileUIPart[] {
+  if (!attachments?.length) return []
+  return attachments.map((attachment) => ({
+    type: "file",
+    mediaType: attachment.contentType,
+    filename: attachment.name,
+    url: attachment.url,
+  }))
+}
+
+function textPart(text: string) {
+  return { type: "text" as const, text }
+}
+
 export function ProjectView({ projectId }: ProjectViewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [enableSearch, setEnableSearch] = useState(false)
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
+  const [input, setInput] = useState("")
   const { user } = useUser()
   const { createNewChat, bumpChat } = useChats()
   const { cacheAndAddMessage } = useMessages()
@@ -85,22 +102,19 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     })
   }, [])
 
-  const {
-    messages,
-    input,
-    handleSubmit,
-    status,
-    reload,
-    stop,
-    setMessages,
-    setInput,
-  } = useChat({
-    id: `project-${projectId}-${currentChatId}`,
-    api: API_ROUTE_CHAT,
-    initialMessages: [],
-    onFinish: cacheAndAddMessage,
-    onError: handleError,
-  })
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: API_ROUTE_CHAT }),
+    []
+  )
+
+  const { messages, status, regenerate, stop, setMessages, sendMessage } =
+    useChat<ZolaUIMessage>({
+      id: `project-${projectId}-${currentChatId}`,
+      messages: [],
+      transport,
+      onFinish: async ({ message }) => cacheAndAddMessage(message),
+      onError: handleError,
+    })
 
   const { selectedModel, handleModelChange } = useModel({
     currentChat: null,
@@ -180,12 +194,9 @@ export function ProjectView({ projectId }: ProjectViewProps) {
   })
 
   // Simple input change handler for project context (no draft saving needed)
-  const handleInputChange = useCallback(
-    (value: string) => {
-      setInput(value)
-    },
-    [setInput]
-  )
+  const handleInputChange = useCallback((value: string) => {
+    setInput(value)
+  }, [])
 
   const submit = useCallback(async () => {
     setIsSubmitting(true)
@@ -199,75 +210,77 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     const optimisticAttachments =
       files.length > 0 ? createOptimisticAttachments(files) : []
 
-    const optimisticMessage = {
+    const optimisticMessage: ZolaUIMessage = {
       id: optimisticId,
-      content: input,
-      role: "user" as const,
-      createdAt: new Date(),
-      experimental_attachments:
-        optimisticAttachments.length > 0 ? optimisticAttachments : undefined,
+      role: "user",
+      parts: [textPart(input), ...attachmentsToFileParts(optimisticAttachments)],
+      metadata: { createdAt: new Date().toISOString() },
     }
 
     setMessages((prev) => [...prev, optimisticMessage])
+    const submittedInput = input
     setInput("")
 
     const submittedFiles = [...files]
     setFiles([])
 
     try {
-      const currentChatId = await ensureChatExists(user.id)
-      if (!currentChatId) {
+      const currentChatIdResolved = await ensureChatExists(user.id)
+      if (!currentChatIdResolved) {
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-        cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+        cleanupOptimisticAttachments(optimisticAttachments)
         return
       }
 
-      if (input.length > MESSAGE_MAX_LENGTH) {
+      if (submittedInput.length > MESSAGE_MAX_LENGTH) {
         toast({
           title: `The message you submitted was too long, please submit something shorter. (Max ${MESSAGE_MAX_LENGTH} characters)`,
           status: "error",
         })
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-        cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+        cleanupOptimisticAttachments(optimisticAttachments)
         return
       }
 
       let attachments: Attachment[] | null = []
       if (submittedFiles.length > 0) {
-        attachments = await handleFileUploads(user.id, currentChatId)
+        attachments = await handleFileUploads(user.id, currentChatIdResolved)
         if (attachments === null) {
           setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
-          cleanupOptimisticAttachments(
-            optimisticMessage.experimental_attachments
-          )
+          cleanupOptimisticAttachments(optimisticAttachments)
           return
         }
       }
 
-      const options = {
-        body: {
-          chatId: currentChatId,
-          userId: user.id,
-          model: selectedModel,
-          isAuthenticated: true,
-          systemPrompt: SYSTEM_PROMPT_DEFAULT,
-          enableSearch,
-        },
-        experimental_attachments: attachments || undefined,
-      }
-
-      handleSubmit(undefined, options)
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-      cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
-      cacheAndAddMessage(optimisticMessage)
+      cleanupOptimisticAttachments(optimisticAttachments)
+
+      sendMessage(
+        { text: submittedInput, files: attachmentsToFileParts(attachments) },
+        {
+          body: {
+            chatId: currentChatIdResolved,
+            userId: user.id,
+            model: selectedModel,
+            isAuthenticated: true,
+            systemPrompt: SYSTEM_PROMPT_DEFAULT,
+            enableSearch,
+          },
+        }
+      )
+
+      cacheAndAddMessage({
+        ...optimisticMessage,
+        parts: [textPart(submittedInput), ...attachmentsToFileParts(attachments)],
+      })
 
       // Bump existing chats to top (non-blocking, after submit)
       if (messages.length > 0) {
-        bumpChat(currentChatId)
+        bumpChat(currentChatIdResolved)
       }
     } catch {
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-      cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+      cleanupOptimisticAttachments(optimisticAttachments)
       toast({ title: "Failed to send message", status: "error" })
     } finally {
       setIsSubmitting(false)
@@ -278,13 +291,12 @@ export function ProjectView({ projectId }: ProjectViewProps) {
     createOptimisticAttachments,
     input,
     setMessages,
-    setInput,
     setFiles,
     cleanupOptimisticAttachments,
     ensureChatExists,
     handleFileUploads,
     selectedModel,
-    handleSubmit,
+    sendMessage,
     cacheAndAddMessage,
     messages.length,
     bumpChat,
@@ -296,7 +308,7 @@ export function ProjectView({ projectId }: ProjectViewProps) {
       return
     }
 
-    const options = {
+    regenerate({
       body: {
         chatId: null,
         userId: user.id,
@@ -304,10 +316,8 @@ export function ProjectView({ projectId }: ProjectViewProps) {
         isAuthenticated: true,
         systemPrompt: SYSTEM_PROMPT_DEFAULT,
       },
-    }
-
-    reload(options)
-  }, [user, selectedModel, reload])
+    })
+  }, [user, selectedModel, regenerate])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {

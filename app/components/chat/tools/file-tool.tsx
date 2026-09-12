@@ -6,10 +6,8 @@ import {
   CodeBlockGroup,
 } from "@/components/prompt-kit/code-block"
 import { useWorkspace } from "@/app/components/workspace/workspace-provider"
-import { FileCode, MagnifyingGlass } from "@phosphor-icons/react"
 import type { ReactNode } from "react"
-import { getToolLabel } from "./tool-labels"
-import { CodeOutput, parseToolResult, ToolShell, type ToolBodyProps } from "./tool-shell"
+import { CodeOutput, parseToolResult, type ToolBodyProps } from "./tool-shell"
 
 // First `+` line in a diff body, 1-based, so "Open file" can land the viewer near the change.
 function firstChangedLine(body: string): number | undefined {
@@ -140,21 +138,18 @@ function DiffView({ file }: { file: DiffFile }) {
 }
 
 // read_file / write_file / patch / search_files
-export function FileTool({ toolData, defaultOpen, className }: ToolBodyProps) {
-  const { toolInvocation } = toolData
-  const { state, args, toolName } = toolInvocation
-  const isRunning = state !== "result"
+export function FileTool({ toolName, toolData, className }: ToolBodyProps) {
+  const { state } = toolData
+  const args = toolData.input as Record<string, unknown> | undefined
+  const isRunning = state !== "output-available" && state !== "output-error"
   const path = (args?.path ?? args?.file_path ?? firstStringArg(args)) as
     | string
     | undefined
-  const result = state === "result" ? parseToolResult(toolInvocation.result) : null
+  const result = state === "output-available" ? parseToolResult(toolData.output) : null
   const resultObj = (result && typeof result === "object" ? result : {}) as Record<
     string,
     unknown
   >
-
-  const icon = toolName === "search_files" ? <MagnifyingGlass /> : <FileCode />
-  const label = getToolLabel(toolName, isRunning)
 
   let body: ReactNode = null
   if (toolName === "write_file") {
@@ -235,16 +230,5 @@ export function FileTool({ toolData, defaultOpen, className }: ToolBodyProps) {
     )
   }
 
-  return (
-    <ToolShell
-      icon={icon}
-      label={label}
-      summary={path}
-      running={isRunning}
-      defaultOpen={defaultOpen}
-      className={className}
-    >
-      {body}
-    </ToolShell>
-  )
+  return <div className={className}>{body}</div>
 }

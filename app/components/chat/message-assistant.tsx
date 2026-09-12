@@ -3,28 +3,33 @@ import {
   MessageAction,
   MessageActions,
   MessageContent,
-} from "@/components/prompt-kit/message"
+  MessageResponse,
+} from "@/components/ai-elements/message"
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning"
+import { textFromMessage } from "@/lib/chat-store/messages/api"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { cn } from "@/lib/utils"
-import type { Message as MessageAISDK } from "@ai-sdk/react"
+import { getToolName, isToolUIPart, type UIMessage } from "ai"
 import { ArrowClockwise, Check, Copy } from "@phosphor-icons/react"
 import { useCallback, useRef } from "react"
 import { getSources } from "./get-sources"
 import { QuoteButton } from "./quote-button"
-import { Reasoning } from "./reasoning"
 import { SearchImages } from "./search-images"
 import { SourcesList } from "./sources-list"
 import { ToolInvocation } from "./tool-invocation"
 import { useAssistantMessageSelection } from "./useAssistantMessageSelection"
 
 type MessageAssistantProps = {
-  children: string
+  parts: UIMessage["parts"]
   isLast?: boolean
   hasScrollAnchor?: boolean
   copied?: boolean
   copyToClipboard?: () => void
   onReload?: () => void
-  parts?: MessageAISDK["parts"]
   status?: "streaming" | "ready" | "submitted" | "error"
   className?: string
   messageId: string
@@ -32,43 +37,39 @@ type MessageAssistantProps = {
 }
 
 export function MessageAssistant({
-  children,
+  parts,
   isLast,
   hasScrollAnchor,
   copied,
   copyToClipboard,
   onReload,
-  parts,
   status,
   className,
   messageId,
   onQuote,
 }: MessageAssistantProps) {
   const { preferences } = useUserPreferences()
+  const children = textFromMessage({ parts })
   const sources = getSources(parts)
-  const toolInvocationParts = parts?.filter(
-    (part) => part.type === "tool-invocation"
+  const toolInvocationParts = parts?.filter(isToolUIPart) ?? []
+  const reasoningPart = parts?.find(
+    (part): part is { type: "reasoning"; text: string } => part.type === "reasoning"
   )
-  const reasoningParts = parts?.find((part) => part.type === "reasoning")
   const contentNullOrEmpty = children === null || children === ""
   const isLastStreaming = status === "streaming" && isLast
   const searchImageResults =
-    parts
-      ?.filter(
+    toolInvocationParts
+      .filter(
         (part) =>
-          part.type === "tool-invocation" &&
-          part.toolInvocation?.state === "result" &&
-          part.toolInvocation?.toolName === "imageSearch" &&
-          part.toolInvocation?.result?.content?.[0]?.type === "images"
+          getToolName(part) === "imageSearch" && part.state === "output-available"
       )
-      .flatMap((part) =>
-        part.type === "tool-invocation" &&
-        part.toolInvocation?.state === "result" &&
-        part.toolInvocation?.toolName === "imageSearch" &&
-        part.toolInvocation?.result?.content?.[0]?.type === "images"
-          ? (part.toolInvocation?.result?.content?.[0]?.results ?? [])
-          : []
-      ) ?? []
+      .flatMap((part) => {
+        const output = part.output as
+          | { content?: Array<{ type: string; results?: unknown[] }> }
+          | undefined
+        const imagesContent = output?.content?.find((c) => c.type === "images")
+        return imagesContent?.results ?? []
+      }) ?? []
 
   const isQuoteEnabled = !preferences.multiModelEnabled
   const messageRef = useRef<HTMLDivElement>(null)
@@ -85,6 +86,7 @@ export function MessageAssistant({
 
   return (
     <Message
+      from="assistant"
       className={cn(
         "group flex w-full max-w-3xl flex-1 items-start gap-4 px-6 pb-2",
         hasScrollAnchor && "min-h-scroll-anchor",
@@ -99,21 +101,19 @@ export function MessageAssistant({
         )}
         {...(isQuoteEnabled && { "data-message-id": messageId })}
       >
-        {reasoningParts && reasoningParts.reasoning && (
-          <Reasoning
-            reasoning={reasoningParts.reasoning}
-            isStreaming={status === "streaming"}
-          />
+        {reasoningPart && reasoningPart.text && (
+          <Reasoning isStreaming={status === "streaming"}>
+            <ReasoningTrigger />
+            <ReasoningContent>{reasoningPart.text}</ReasoningContent>
+          </Reasoning>
         )}
 
-        {toolInvocationParts &&
-          toolInvocationParts.length > 0 &&
-          preferences.showToolInvocations && (
-            <ToolInvocation toolInvocations={toolInvocationParts} />
-          )}
+        {toolInvocationParts.length > 0 && preferences.showToolInvocations && (
+          <ToolInvocation toolInvocations={toolInvocationParts} />
+        )}
 
         {searchImageResults.length > 0 && (
-          <SearchImages results={searchImageResults} />
+          <SearchImages results={searchImageResults as never[]} />
         )}
 
         {contentNullOrEmpty ? null : (
@@ -122,9 +122,8 @@ export function MessageAssistant({
               "prose dark:prose-invert relative min-w-full bg-transparent p-0",
               "prose-h1:scroll-m-20 prose-h1:text-2xl prose-h1:font-semibold prose-h2:mt-8 prose-h2:scroll-m-20 prose-h2:text-xl prose-h2:mb-3 prose-h2:font-medium prose-h3:scroll-m-20 prose-h3:text-base prose-h3:font-medium prose-h4:scroll-m-20 prose-h5:scroll-m-20 prose-h6:scroll-m-20 prose-strong:font-medium prose-table:block prose-table:overflow-y-auto"
             )}
-            markdown={true}
           >
-            {children}
+            <MessageResponse>{children}</MessageResponse>
           </MessageContent>
         )}
 
@@ -138,35 +137,20 @@ export function MessageAssistant({
           >
             <MessageAction
               tooltip={copied ? "Copied!" : "Copy text"}
-              side="bottom"
+              label="Copy text"
+              className="hover:bg-accent/60 text-muted-foreground hover:text-foreground rounded-full bg-transparent"
+              onClick={copyToClipboard}
             >
-              <button
-                className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
-                aria-label="Copy text"
-                onClick={copyToClipboard}
-                type="button"
-              >
-                {copied ? (
-                  <Check className="size-4" />
-                ) : (
-                  <Copy className="size-4" />
-                )}
-              </button>
+              {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
             </MessageAction>
             {isLast ? (
               <MessageAction
                 tooltip="Regenerate"
-                side="bottom"
-                delayDuration={0}
+                label="Regenerate"
+                className="hover:bg-accent/60 text-muted-foreground hover:text-foreground rounded-full bg-transparent"
+                onClick={onReload}
               >
-                <button
-                  className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
-                  aria-label="Regenerate"
-                  onClick={onReload}
-                  type="button"
-                >
-                  <ArrowClockwise className="size-4" />
-                </button>
+                <ArrowClockwise className="size-4" />
               </MessageAction>
             ) : null}
           </MessageActions>

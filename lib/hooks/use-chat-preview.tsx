@@ -2,6 +2,7 @@ import {
   cacheMessages,
   getCachedMessages,
   getMessagesFromDb,
+  textFromMessage,
 } from "@/lib/chat-store/messages/api"
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -68,10 +69,10 @@ export function useChatPreview(): UseChatPreviewReturn {
               .slice(-5) // Get last 5 messages
               .map((msg) => ({
                 id: msg.id,
-                content: msg.content,
+                content: textFromMessage(msg),
                 role: msg.role as "user" | "assistant",
                 created_at:
-                  msg.createdAt?.toISOString() || new Date().toISOString(),
+                  msg.metadata?.createdAt || new Date().toISOString(),
               }))
             setMessages(cachedMessages)
           }
@@ -92,10 +93,10 @@ export function useChatPreview(): UseChatPreviewReturn {
               .slice(-5) // Get last 5 messages
               .map((msg) => ({
                 id: msg.id,
-                content: msg.content,
+                content: textFromMessage(msg),
                 role: msg.role as "user" | "assistant",
                 created_at:
-                  msg.createdAt?.toISOString() || new Date().toISOString(),
+                  msg.metadata?.createdAt || new Date().toISOString(),
               }))
             setMessages(freshMessages)
           }

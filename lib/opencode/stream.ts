@@ -1,22 +1,23 @@
-import { formatDataStreamPart } from "@ai-sdk/ui-utils"
+import { createUIMessageStream, type UIMessage, type UIMessageStreamWriter } from "ai"
 
-// Maps OpenCode's `/event` SSE bus to the AI SDK v4 data-stream protocol
-// Zola's client already renders (same job as lib/hermes/stream.ts, mirrored
-// for OpenCode's event shape).
+// Maps OpenCode's `/event` SSE bus to the AI SDK v5+ UI message stream
+// protocol (same job as lib/hermes/stream.ts, mirrored for OpenCode's event
+// shape). Emits writer.write() chunks; createUIMessageStream reconstructs
+// the final assistant UIMessage (with `.parts`) for onFinish persistence.
 //
 // Event shapes (from packages/sdk/js/src/gen/types.gen.ts, anomalyco/opencode
 // dev branch): every SSE frame is `{ type, properties }`.
 //   message.part.updated  -> properties.part (Part), part.sessionID scopes it
-//   session.idle          -> properties.sessionID                -> "e:"+"d:" finish
-//   session.error         -> properties.sessionID?, properties.error -> "3:" error
+//   session.idle          -> properties.sessionID                -> finish
+//   session.error         -> properties.sessionID?, properties.error -> error
 // Part union relevant here:
-//   TextPart      { id, sessionID, type: "text", text }              -> "0:" delta
-//   ReasoningPart { id, sessionID, type: "reasoning", text }         -> "g:" delta
+//   TextPart      { id, sessionID, type: "text", text }              -> text-delta
+//   ReasoningPart { id, sessionID, type: "reasoning", text }         -> reasoning-delta
 //   ToolPart      { id, sessionID, type: "tool", callID, tool, state }
 //     state.status: "pending" | "running" | "completed" | "error"
 //     state.input always present; state.output on completed; state.error on error
-//     first sighting of a tool part (any status) -> "9:" tool_call
-//     status transitions to completed/error (once)  -> "a:" tool_result {output|error}
+//     first sighting of a tool part (any status) -> tool-input-available
+//     status transitions to completed/error (once)  -> tool-output-available/-error
 // The `/event` stream is a global bus shared by every session, so every part
 // and idle/error event not matching our `sessionId` is ignored, and we stop
 // reading (cancelling the underlying connection) once our session goes idle
@@ -38,23 +39,6 @@ type OpencodePart = {
   callID?: string
   tool?: string
   state?: OpencodeToolState
-}
-
-type OpencodeToolPart = {
-  type: "tool-invocation"
-  toolInvocation: {
-    state: "call" | "result"
-    step: number
-    toolCallId: string
-    toolName: string
-    args?: unknown
-    result?: unknown
-  }
-}
-
-type OpencodeFinishPayload = {
-  text: string
-  toolParts: OpencodeToolPart[]
 }
 
 // OpenCode tool names/params, normalised to the Hermes shapes the chat
@@ -109,217 +93,217 @@ export function normalizeOpencodeTool(
 
 type OpencodeStreamOpts = {
   sessionId: string
-  onFinish?: (payload: OpencodeFinishPayload) => void | Promise<void>
+  onFinish?: (payload: { message: UIMessage }) => void | Promise<void>
 }
 
-export function opencodeEventsToDataStream(
+async function writeOpencodeEvents(
   sse: ReadableStream<Uint8Array>,
-  opts: OpencodeStreamOpts
-): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder()
+  writer: UIMessageStreamWriter,
+  sessionId: string
+): Promise<void> {
   const decoder = new TextDecoder()
 
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const emit = (line: string) => controller.enqueue(encoder.encode(line))
+  // OpenCode part events carry the *cumulative* text so far, not a delta,
+  // so each part id's previously-seen length has to be tracked to compute
+  // the actual text-delta/reasoning-delta chunk.
+  const textByPart = new Map<string, string>()
+  const reasoningByPart = new Map<string, string>()
+  const toolCalled = new Set<string>()
+  const toolFinished = new Set<string>()
+  let finished = false
+  // The /event bus also replays the user's own message parts; skip them.
+  const userMessageIds = new Set<string>()
 
-      const textByPart = new Map<string, string>()
-      const reasoningByPart = new Map<string, string>()
-      const toolCalled = new Set<string>()
-      const toolFinished = new Set<string>()
-      const toolParts: OpencodeToolPart[] = []
-      let fullText = ""
-      let finished = false
-      // The /event bus also replays the user's own message parts; skip them.
-      const userMessageIds = new Set<string>()
+  writer.write({ type: "start" })
 
-      const handlePart = (part: OpencodePart) => {
-        if (part.sessionID !== opts.sessionId) return
-        if (part.messageID && userMessageIds.has(part.messageID)) return
+  const handlePart = (part: OpencodePart) => {
+    if (part.sessionID !== sessionId) return
+    if (part.messageID && userMessageIds.has(part.messageID)) return
 
-        if (part.type === "text" && typeof part.text === "string") {
-          const prev = textByPart.get(part.id) ?? ""
-          if (part.text.length > prev.length) {
-            const delta = part.text.slice(prev.length)
-            textByPart.set(part.id, part.text)
-            fullText += delta
-            emit(formatDataStreamPart("text", delta))
-          }
-          return
-        }
-
-        if (part.type === "reasoning" && typeof part.text === "string") {
-          const prev = reasoningByPart.get(part.id) ?? ""
-          if (part.text.length > prev.length) {
-            const delta = part.text.slice(prev.length)
-            reasoningByPart.set(part.id, part.text)
-            emit(formatDataStreamPart("reasoning", delta))
-          }
-          return
-        }
-
-        if (part.type === "tool" && part.state && part.callID && part.tool) {
-          const { state } = part
-          // "pending" parts carry no input yet; wait for running/completed so
-          // the call line has real args.
-          if (!toolCalled.has(part.id) && state.status !== "pending") {
-            toolCalled.add(part.id)
-            const { toolName, args } = normalizeOpencodeTool(
-              part.tool,
-              state.input ?? {}
-            )
-            emit(
-              formatDataStreamPart("tool_call", {
-                toolCallId: part.callID,
-                toolName,
-                args,
-              })
-            )
-            toolParts.push({
-              type: "tool-invocation",
-              toolInvocation: {
-                state: "call",
-                step: 0,
-                toolCallId: part.callID,
-                toolName,
-                args,
-              },
-            })
-          }
-
-          if (
-            (state.status === "completed" || state.status === "error") &&
-            !toolFinished.has(part.id)
-          ) {
-            toolFinished.add(part.id)
-            const norm = normalizeOpencodeTool(
-              part.tool,
-              state.input ?? {},
-              state.status === "completed" ? (state.output ?? "") : undefined
-            )
-            const result =
-              state.status === "completed"
-                ? (norm.result ?? { output: state.output })
-                : {
-                    error:
-                      typeof state.error === "string"
-                        ? state.error
-                        : JSON.stringify(state.error),
-                  }
-            emit(
-              formatDataStreamPart("tool_result", {
-                toolCallId: part.callID,
-                result,
-              })
-            )
-            toolParts.push({
-              type: "tool-invocation",
-              toolInvocation: {
-                state: "result",
-                step: 0,
-                toolCallId: part.callID,
-                toolName: norm.toolName,
-                args: norm.args,
-                result,
-              },
-            })
-          }
-        }
+    if (part.type === "text" && typeof part.text === "string") {
+      if (!textByPart.has(part.id)) {
+        textByPart.set(part.id, "")
+        writer.write({ type: "text-start", id: part.id })
       }
-
-      const handleFrame = (frame: string) => {
-        const dataLine = frame
-          .split("\n")
-          .find((line) => line.startsWith("data:"))
-        if (!dataLine) return
-        const raw = dataLine.slice(5).trim()
-        if (!raw) return
-
-        let event: { type?: string; properties?: Record<string, unknown> }
-        try {
-          event = JSON.parse(raw)
-        } catch {
-          return
-        }
-
-        switch (event.type) {
-          case "message.updated": {
-            const info = event.properties?.info as
-              | { id?: string; role?: string; sessionID?: string }
-              | undefined
-            if (info?.sessionID === opts.sessionId && info.role === "user" && info.id) {
-              userMessageIds.add(info.id)
-            }
-            break
-          }
-          case "message.part.updated": {
-            const part = event.properties?.part as OpencodePart | undefined
-            if (part) handlePart(part)
-            break
-          }
-          case "session.idle": {
-            if (event.properties?.sessionID !== opts.sessionId) break
-            emit(
-              formatDataStreamPart("finish_step", {
-                finishReason: "stop",
-                isContinued: false,
-              })
-            )
-            emit(formatDataStreamPart("finish_message", { finishReason: "stop" }))
-            finished = true
-            break
-          }
-          case "session.error": {
-            const sid = event.properties?.sessionID
-            if (sid && sid !== opts.sessionId) break
-            const error = event.properties?.error
-            const message =
-              typeof error === "string"
-                ? error
-                : (error as { message?: string; data?: { message?: string } } | undefined)
-                    ?.data?.message ||
-                  (error as { message?: string } | undefined)?.message ||
-                  "OpenCode agent request failed"
-            emit(formatDataStreamPart("error", message))
-            finished = true
-            break
-          }
-          default:
-            break
-        }
+      const prev = textByPart.get(part.id) ?? ""
+      if (part.text.length > prev.length) {
+        const delta = part.text.slice(prev.length)
+        textByPart.set(part.id, part.text)
+        writer.write({ type: "text-delta", id: part.id, delta })
       }
+      return
+    }
 
-      const reader = sse.getReader()
-      let buf = ""
-      try {
-        while (!finished) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buf += decoder.decode(value, { stream: true })
-          let idx: number
-          while ((idx = buf.indexOf("\n\n")) !== -1) {
-            handleFrame(buf.slice(0, idx))
-            buf = buf.slice(idx + 2)
-            if (finished) break
-          }
-        }
-      } catch (err) {
-        emit(
-          formatDataStreamPart(
-            "error",
-            err instanceof Error ? err.message : String(err)
-          )
+    if (part.type === "reasoning" && typeof part.text === "string") {
+      if (!reasoningByPart.has(part.id)) {
+        reasoningByPart.set(part.id, "")
+        writer.write({ type: "reasoning-start", id: part.id })
+      }
+      const prev = reasoningByPart.get(part.id) ?? ""
+      if (part.text.length > prev.length) {
+        const delta = part.text.slice(prev.length)
+        reasoningByPart.set(part.id, part.text)
+        writer.write({ type: "reasoning-delta", id: part.id, delta })
+      }
+      return
+    }
+
+    if (part.type === "tool" && part.state && part.callID && part.tool) {
+      const { state } = part
+      // "pending" parts carry no input yet; wait for running/completed so
+      // the call line has real args.
+      if (!toolCalled.has(part.id) && state.status !== "pending") {
+        toolCalled.add(part.id)
+        const { toolName, args } = normalizeOpencodeTool(
+          part.tool,
+          state.input ?? {}
         )
-      } finally {
-        // Persist and close first: cancelling the shared /event connection can
-        // block on the server, and awaiting it here kept the response open.
-        try {
-          await opts.onFinish?.({ text: fullText, toolParts })
-        } catch (err) {
-          console.error("opencode onFinish persistence failed:", err)
+        writer.write({
+          type: "tool-input-available",
+          toolCallId: part.callID,
+          toolName,
+          input: args,
+        })
+      }
+
+      if (
+        (state.status === "completed" || state.status === "error") &&
+        !toolFinished.has(part.id)
+      ) {
+        toolFinished.add(part.id)
+        const norm = normalizeOpencodeTool(
+          part.tool,
+          state.input ?? {},
+          state.status === "completed" ? (state.output ?? "") : undefined
+        )
+        if (state.status === "completed") {
+          writer.write({
+            type: "tool-output-available",
+            toolCallId: part.callID,
+            output: norm.result ?? { output: state.output },
+          })
+        } else {
+          const errorText =
+            typeof state.error === "string"
+              ? state.error
+              : JSON.stringify(state.error)
+          writer.write({
+            type: "tool-output-error",
+            toolCallId: part.callID,
+            errorText,
+          })
         }
-        controller.close()
-        reader.cancel().catch(() => {})
+      }
+    }
+  }
+
+  const closeOpenParts = () => {
+    for (const id of textByPart.keys()) writer.write({ type: "text-end", id })
+    for (const id of reasoningByPart.keys())
+      writer.write({ type: "reasoning-end", id })
+  }
+
+  const handleFrame = (frame: string) => {
+    const dataLine = frame.split("\n").find((line) => line.startsWith("data:"))
+    if (!dataLine) return
+    const raw = dataLine.slice(5).trim()
+    if (!raw) return
+
+    let event: { type?: string; properties?: Record<string, unknown> }
+    try {
+      event = JSON.parse(raw)
+    } catch {
+      return
+    }
+
+    switch (event.type) {
+      case "message.updated": {
+        const info = event.properties?.info as
+          | { id?: string; role?: string; sessionID?: string }
+          | undefined
+        if (info?.sessionID === sessionId && info.role === "user" && info.id) {
+          userMessageIds.add(info.id)
+        }
+        break
+      }
+      case "message.part.updated": {
+        const part = event.properties?.part as OpencodePart | undefined
+        if (part) handlePart(part)
+        break
+      }
+      case "session.idle": {
+        if (event.properties?.sessionID !== sessionId) break
+        closeOpenParts()
+        writer.write({ type: "finish" })
+        finished = true
+        break
+      }
+      case "session.error": {
+        const sid = event.properties?.sessionID
+        if (sid && sid !== sessionId) break
+        const error = event.properties?.error
+        const message =
+          typeof error === "string"
+            ? error
+            : (error as { message?: string; data?: { message?: string } } | undefined)
+                ?.data?.message ||
+              (error as { message?: string } | undefined)?.message ||
+              "OpenCode agent request failed"
+        closeOpenParts()
+        writer.write({ type: "error", errorText: message })
+        finished = true
+        break
+      }
+      default:
+        break
+    }
+  }
+
+  const reader = sse.getReader()
+  let buf = ""
+  try {
+    while (!finished) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      let idx: number
+      while ((idx = buf.indexOf("\n\n")) !== -1) {
+        handleFrame(buf.slice(0, idx))
+        buf = buf.slice(idx + 2)
+        if (finished) break
+      }
+    }
+    if (!finished) {
+      closeOpenParts()
+      writer.write({ type: "finish" })
+    }
+  } catch (err) {
+    closeOpenParts()
+    writer.write({
+      type: "error",
+      errorText: err instanceof Error ? err.message : String(err),
+    })
+  } finally {
+    // Don't await the cancel: cancelling the shared /event connection can
+    // block on the server, and awaiting it here would delay execute()
+    // resolving (and therefore delay onFinish persistence) until it does.
+    reader.cancel().catch(() => {})
+  }
+}
+
+export function opencodeEventsToUIMessageStream(
+  sse: ReadableStream<Uint8Array>,
+  opts: OpencodeStreamOpts
+) {
+  return createUIMessageStream({
+    execute: async ({ writer }) => {
+      await writeOpencodeEvents(sse, writer, opts.sessionId)
+    },
+    onFinish: async ({ responseMessage }) => {
+      try {
+        await opts.onFinish?.({ message: responseMessage })
+      } catch (err) {
+        console.error("opencode onFinish persistence failed:", err)
       }
     },
   })

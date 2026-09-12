@@ -1,15 +1,22 @@
 import { AGENTS, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
+import type { Attachment } from "@/lib/file-handling"
 import { hermesRequest } from "@/lib/hermes/client"
-import { hermesResponsesToDataStream } from "@/lib/hermes/stream"
+import { hermesResponsesToUIMessageStream } from "@/lib/hermes/stream"
 import { opencodeCreateSession, opencodeRequest } from "@/lib/opencode/client"
-import { opencodeEventsToDataStream } from "@/lib/opencode/stream"
+import { opencodeEventsToUIMessageStream } from "@/lib/opencode/stream"
 import { getAllModels } from "@/lib/models"
 import { getProviderForModel } from "@/lib/openproviders/provider-map"
 import type { ProviderWithoutOllama } from "@/lib/user-keys"
 import { getCurrentUser } from "@/lib/auth"
 import { db, schema } from "@/lib/db"
-import { Attachment } from "@ai-sdk/ui-utils"
-import { Message as MessageAISDK, streamText, ToolSet } from "ai"
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  streamText,
+  type ToolSet,
+  type UIMessage,
+} from "ai"
 import { gte, and, eq } from "drizzle-orm"
 import {
   incrementMessageCount,
@@ -22,7 +29,7 @@ import { createErrorResponse, extractErrorMessage } from "./utils"
 export const maxDuration = 60
 
 type ChatRequest = {
-  messages: MessageAISDK[]
+  messages: UIMessage[]
   chatId: string
   model: string
   systemPrompt: string
@@ -33,6 +40,50 @@ type ChatRequest = {
   incognito?: boolean
   /** Header AgentPicker selection. Always a real agent id. */
   agentId?: string
+}
+
+function textFromParts(message: UIMessage | undefined): string {
+  if (!message) return ""
+  return message.parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("")
+}
+
+function attachmentsFromParts(message: UIMessage | undefined): Attachment[] {
+  if (!message) return []
+  return message.parts
+    .filter(
+      (p): p is { type: "file"; mediaType: string; filename?: string; url: string } =>
+        p.type === "file"
+    )
+    .map((p) => ({
+      name: p.filename || "attachment",
+      contentType: p.mediaType,
+      url: p.url,
+    }))
+}
+
+async function persistAssistantMessage({
+  shouldPersist,
+  chatId,
+  message,
+  message_group_id,
+  model,
+}: {
+  shouldPersist: boolean
+  chatId: string
+  message: UIMessage
+  message_group_id?: string
+  model: string
+}) {
+  if (!shouldPersist) return
+  await storeAssistantMessage({
+    chatId,
+    messages: [{ role: "assistant", parts: message.parts }],
+    message_group_id,
+    model,
+  })
 }
 
 export async function POST(req: Request) {
@@ -98,8 +149,8 @@ export async function POST(req: Request) {
       await logUserMessage({
         userId,
         chatId,
-        content: userMessage.content,
-        attachments: userMessage.experimental_attachments as Attachment[],
+        content: textFromParts(userMessage),
+        attachments: attachmentsFromParts(userMessage),
         model,
         message_group_id,
       })
@@ -120,7 +171,7 @@ export async function POST(req: Request) {
 
     // OpenCode is a coder agent (bash/edit/read/... tools) that runs its own
     // server-side session; we post the latest user turn to that session and
-    // stream its event bus back, mapped to the same data-stream protocol.
+    // stream its event bus back, mapped to the UI message stream protocol.
     if (runtime === "opencode") {
       const [chatRow] = await db
         .select({
@@ -144,8 +195,7 @@ export async function POST(req: Request) {
         }
       }
 
-      const userText =
-        typeof userMessage?.content === "string" ? userMessage.content : ""
+      const userText = textFromParts(userMessage)
 
       const eventStream = await opencodeRequest({
         sessionId,
@@ -153,34 +203,19 @@ export async function POST(req: Request) {
         model,
       })
 
-      return new Response(
-        opencodeEventsToDataStream(eventStream, {
-          sessionId,
-          onFinish: async ({ text, toolParts }) => {
-            if (!shouldPersist) return
-            await storeAssistantMessage({
-              chatId,
-              messages: [
-                {
-                  role: "assistant",
-                  content: [
-                    ...(text ? [{ type: "text", text }] : []),
-                    ...toolParts,
-                  ],
-                },
-              ],
-              message_group_id,
-              model,
-            })
-          },
-        }),
-        {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-            "X-Vercel-AI-Data-Stream": "v1",
-          },
-        }
-      )
+      const stream = opencodeEventsToUIMessageStream(eventStream, {
+        sessionId,
+        onFinish: async ({ message }) =>
+          persistAssistantMessage({
+            shouldPersist,
+            chatId,
+            message,
+            message_group_id,
+            model,
+          }),
+      })
+
+      return createUIMessageStreamResponse({ stream })
     }
 
     // Hermes Agent runs its own model + tools server-side on our VM; bypass
@@ -195,34 +230,21 @@ export async function POST(req: Request) {
         systemPrompt: effectiveSystemPrompt,
       })
 
-      return new Response(
-        hermesResponsesToDataStream(hermesRes.body as ReadableStream<Uint8Array>, {
-          messageId: crypto.randomUUID(),
-          onFinish: async ({ text, toolParts }) => {
-            if (!shouldPersist) return
-            await storeAssistantMessage({
+      const stream = hermesResponsesToUIMessageStream(
+        hermesRes.body as ReadableStream<Uint8Array>,
+        {
+          onFinish: async ({ message }) =>
+            persistAssistantMessage({
+              shouldPersist,
               chatId,
-              messages: [
-                {
-                  role: "assistant",
-                  content: [
-                    ...(text ? [{ type: "text", text }] : []),
-                    ...toolParts,
-                  ],
-                },
-              ],
+              message,
               message_group_id,
               model,
-            })
-          },
-        }),
-        {
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-            "X-Vercel-AI-Data-Stream": "v1",
-          },
+            }),
         }
       )
+
+      return createUIMessageStreamResponse({ stream })
     }
 
     const { getEffectiveApiKey } = await import("@/lib/user-keys")
@@ -230,39 +252,38 @@ export async function POST(req: Request) {
     const apiKey =
       (await getEffectiveApiKey(userId, provider as ProviderWithoutOllama)) ||
       undefined
+    const apiSdk = modelConfig.apiSdk
 
-    const result = streamText({
-      model: modelConfig.apiSdk(apiKey, { enableSearch }),
-      system: effectiveSystemPrompt,
-      messages: messages,
-      tools: {} as ToolSet,
-      maxSteps: 10,
-      onError: (err: unknown) => {
-        console.error("Streaming error occurred:", err)
-        // Don't set streamError anymore - let the AI SDK handle it through the stream
+    const stream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        const result = streamText({
+          model: apiSdk(apiKey, { enableSearch }),
+          system: effectiveSystemPrompt,
+          messages: await convertToModelMessages(messages),
+          tools: {} as ToolSet,
+          onError: (err: unknown) => {
+            console.error("Streaming error occurred:", err)
+          },
+        })
+        writer.merge(
+          result.toUIMessageStream({ sendReasoning: true, sendSources: true })
+        )
       },
-
-      onFinish: async ({ response }) => {
-        if (shouldPersist) {
-          await storeAssistantMessage({
-            chatId,
-            messages:
-              response.messages as unknown as import("@/app/types/api.types").Message[],
-            message_group_id,
-            model,
-          })
-        }
-      },
-    })
-
-    return result.toDataStreamResponse({
-      sendReasoning: true,
-      sendSources: true,
-      getErrorMessage: (error: unknown) => {
+      onFinish: async ({ responseMessage }) =>
+        persistAssistantMessage({
+          shouldPersist,
+          chatId,
+          message: responseMessage,
+          message_group_id,
+          model,
+        }),
+      onError: (error: unknown) => {
         console.error("Error forwarded to client:", error)
         return extractErrorMessage(error)
       },
     })
+
+    return createUIMessageStreamResponse({ stream })
   } catch (err: unknown) {
     console.error("Error in /api/chat:", err)
     const error = err as {

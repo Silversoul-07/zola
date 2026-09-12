@@ -1,7 +1,6 @@
 import { timingSafeEqual } from "crypto"
 import { cookies } from "next/headers"
 import { db, schema } from "@/lib/db"
-import { eq } from "drizzle-orm"
 import { MODEL_DEFAULT } from "@/lib/config"
 import { SESSION_COOKIE, createSessionToken, verifySessionToken } from "./session"
 

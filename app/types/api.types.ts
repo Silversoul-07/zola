@@ -1,28 +1,20 @@
-import type { Attachment } from "@ai-sdk/ui-utils"
+import type { Attachment } from "@/lib/file-handling"
 
+// v5 UIMessage part shapes (subset we actually persist). Tool parts use the
+// `tool-<name>` discriminated type AI SDK v5 puts on UIMessage["parts"].
 export interface ContentPart {
   type: string
   text?: string
   toolCallId?: string
-  toolName?: string
-  args?: unknown
-  result?: unknown
-  toolInvocation?: {
-    state: string
-    step: number
-    toolCallId: string
-    toolName: string
-    args?: unknown
-    result?: unknown
-  }
-  reasoning?: string
-  details?: unknown[]
+  state?: string
+  input?: unknown
+  output?: unknown
+  errorText?: string
 }
 
 export interface Message {
-  role: "user" | "assistant" | "system" | "data" | "tool" | "tool-call"
-  content: string | null | ContentPart[]
-  reasoning?: string
+  role: "user" | "assistant" | "system"
+  parts: ContentPart[]
 }
 
 export interface ChatApiParams {

@@ -6,11 +6,11 @@ import {
 } from "@/components/prompt-kit/chat-container"
 import { Loader } from "@/components/prompt-kit/loader"
 import { ScrollButton } from "@/components/prompt-kit/scroll-button"
-import { ExtendedMessageAISDK } from "@/lib/chat-store/messages/api"
+import type { ExtendedMessageAISDK } from "@/lib/chat-store/messages/api"
 import { getModelInfo } from "@/lib/models"
 import { PROVIDERS } from "@/lib/providers"
 import { cn } from "@/lib/utils"
-import { Message as MessageType } from "@ai-sdk/react"
+import type { UIMessage as MessageType } from "ai"
 import { useEffect, useState } from "react"
 import { Message } from "../chat/message"
 
@@ -62,12 +62,7 @@ function ResponseCard({ response, group }: ResponseCardProps) {
           <Message
             id={response.message.id}
             variant="assistant"
-            parts={
-              response.message.parts || [
-                { type: "text", text: response.message.content },
-              ]
-            }
-            attachments={response.message.experimental_attachments}
+            parts={response.message.parts}
             onDelete={() => group.onDelete(response.model, response.message.id)}
             onEdit={(id, newText) => group.onEdit(response.model, id, newText)}
             onReload={() => group.onReload(response.model)}
@@ -75,9 +70,7 @@ function ResponseCard({ response, group }: ResponseCardProps) {
             isLast={false}
             hasScrollAnchor={false}
             className="bg-transparent p-0 px-0"
-          >
-            {response.message.content}
-          </Message>
+          />
         ) : response.isLoading ? (
           <div className="space-y-2">
             <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
@@ -137,23 +130,16 @@ export function MultiModelConversation({
                       <Message
                         id={group.userMessage.id}
                         variant="user"
-                        parts={
-                          group.userMessage.parts || [
-                            { type: "text", text: group.userMessage.content },
-                          ]
-                        }
-                        attachments={group.userMessage.experimental_attachments}
+                        parts={group.userMessage.parts}
                         onDelete={() => {}}
                         onEdit={() => {}}
                         onReload={() => {}}
                         status="ready"
                         messageGroupId={
-                          (group.userMessage as ExtendedMessageAISDK)
-                            .message_group_id ?? null
+                          (group.userMessage as ExtendedMessageAISDK).metadata
+                            ?.message_group_id ?? null
                         }
-                      >
-                        {group.userMessage.content}
-                      </Message>
+                      />
                     </div>
 
                     <div

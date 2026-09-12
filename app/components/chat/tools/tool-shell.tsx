@@ -4,108 +4,9 @@ import {
   CodeBlock,
   CodeBlockCode,
 } from "@/components/prompt-kit/code-block"
+import type { ToolPart } from "@/components/ai-elements/tool"
 import { cn } from "@/lib/utils"
-import { CaretDown, Spinner, Warning } from "@phosphor-icons/react"
-import { AnimatePresence, motion } from "framer-motion"
-import { type ReactNode, useState } from "react"
-import { Shimmer } from "./shimmer"
-
-const TRANSITION = {
-  type: "spring",
-  duration: 0.2,
-  bounce: 0,
-} as const
-
-// Compact single-line transcript row every per-tool renderer uses: icon +
-// label + summary + status, expanding on click. Borderless by default so
-// consecutive rows stack tightly (see tool-invocation.tsx); the expanded
-// body gets its own bordered panel. Adopted from Coder's TranscriptRow /
-// ToolCall primitives.
-export function ToolShell({
-  icon,
-  label,
-  summary,
-  badge,
-  running,
-  error,
-  defaultOpen = false,
-  className,
-  children,
-}: {
-  icon: ReactNode
-  label: string
-  summary?: ReactNode
-  badge?: ReactNode
-  running?: boolean
-  error?: boolean
-  defaultOpen?: boolean
-  className?: string
-  children?: ReactNode
-}) {
-  const [isExpanded, setIsExpanded] = useState(defaultOpen)
-  const hasBody = children !== undefined && children !== null
-
-  return (
-    <div className={cn("flex flex-col text-[13px]", className)}>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault()
-          if (hasBody) setIsExpanded((v) => !v)
-        }}
-        className={cn(
-          "text-muted-foreground flex min-h-6 w-full min-w-0 items-center gap-2 rounded text-left transition-colors",
-          hasBody && "hover:text-foreground cursor-pointer"
-        )}
-      >
-        <span className="shrink-0 [&_svg]:size-4">{icon}</span>
-        {running ? (
-          <Shimmer className="shrink-0 truncate text-sky-500">{label}</Shimmer>
-        ) : (
-          <span className={cn("shrink-0 truncate", error && "text-red-500")}>
-            {label}
-          </span>
-        )}
-        {summary && (
-          <span className="text-muted-foreground/70 min-w-0 flex-1 truncate font-mono text-xs">
-            {summary}
-          </span>
-        )}
-        {running && (
-          <Spinner className="size-3.5 shrink-0 animate-spin text-sky-500" />
-        )}
-        {error && !running && (
-          <Warning className="size-3.5 shrink-0 text-red-500" />
-        )}
-        {badge}
-        {hasBody && (
-          <CaretDown
-            className={cn(
-              "size-3 shrink-0 transition-transform",
-              isExpanded && "rotate-180"
-            )}
-          />
-        )}
-      </button>
-
-      <AnimatePresence initial={false}>
-        {isExpanded && hasBody && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={TRANSITION}
-            className="overflow-hidden"
-          >
-            <div className="border-border bg-muted/40 mb-1 ml-6 rounded-md border px-3 py-2">
-              {children}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
+import { useState } from "react"
 
 export function ExitCodeBadge({ code }: { code: number }) {
   const ok = code === 0
@@ -183,8 +84,14 @@ export function parseToolResult(result: unknown): unknown {
   return result
 }
 
+// Re-exported so per-tool bodies (file-tool.tsx etc.) share one import path;
+// the actual collapsible chrome (icon/label/status/expand) is now the
+// Elements <Tool>/<ToolHeader>/<ToolContent> trio in tool-invocation.tsx.
+export type { ToolPart as ToolUIPart }
+
 export type ToolBodyProps = {
-  toolData: import("@ai-sdk/ui-utils").ToolInvocationUIPart
+  toolName: string
+  toolData: ToolPart
   defaultOpen?: boolean
   className?: string
 }

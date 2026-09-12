@@ -3,21 +3,22 @@ import { useChatDraft } from "@/app/hooks/use-chat-draft"
 import { toast } from "@/components/ui/toast"
 import { getOrCreateGuestUserId } from "@/lib/api"
 import { useChats } from "@/lib/chat-store/chats/provider"
+import type { ZolaUIMessage } from "@/lib/chat-store/messages/api"
 import { MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
-import { Attachment } from "@/lib/file-handling"
+import type { Attachment } from "@/lib/file-handling"
 import { getEffectiveAgentId } from "@/lib/config"
 import { API_ROUTE_CHAT } from "@/lib/routes"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import type { UserProfile } from "@/lib/user/types"
-import type { Message } from "@ai-sdk/react"
+import { DefaultChatTransport, type FileUIPart } from "ai"
 import { useChat } from "@ai-sdk/react"
 import { useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 type UseChatCoreProps = {
-  initialMessages: Message[]
+  initialMessages: ZolaUIMessage[]
   draftValue: string
-  cacheAndAddMessage: (message: Message) => void
+  cacheAndAddMessage: (message: ZolaUIMessage) => void
   chatId: string | null
   user: UserProfile | null
   files: File[]
@@ -42,6 +43,20 @@ type UseChatCoreProps = {
   incognito?: boolean
 }
 
+function attachmentsToFileParts(attachments?: Attachment[] | null): FileUIPart[] {
+  if (!attachments?.length) return []
+  return attachments.map((attachment) => ({
+    type: "file",
+    mediaType: attachment.contentType,
+    filename: attachment.name,
+    url: attachment.url,
+  }))
+}
+
+function textPart(text: string) {
+  return { type: "text" as const, text }
+}
+
 export function useChatCore({
   initialMessages,
   draftValue,
@@ -64,6 +79,8 @@ export function useChatCore({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasDialogAuth, setHasDialogAuth] = useState(false)
   const [enableSearch, setEnableSearch] = useState(false)
+  // v5 useChat no longer owns input state; we manage it ourselves.
+  const [input, setInput] = useState(draftValue)
 
   // Header AgentPicker selection (mirrors the default in agent-picker.tsx).
   const { preferences } = useUserPreferences()
@@ -101,47 +118,49 @@ export function useChatCore({
     })
   }, [])
 
-  // Initialize useChat
-  const {
-    messages,
-    input,
-    handleSubmit,
-    status,
-    error,
-    reload,
-    stop,
-    setMessages,
-    setInput,
-    append,
-  } = useChat({
-    api: API_ROUTE_CHAT,
-    initialMessages,
-    initialInput: draftValue,
-    onFinish: async (m) => {
-      cacheAndAddMessage(m)
-      try {
-        const effectiveChatId =
-          chatId ||
-          prevChatIdRef.current ||
-          (typeof window !== "undefined"
-            ? localStorage.getItem("guestChatId")
-            : null)
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: API_ROUTE_CHAT }),
+    []
+  )
 
-        if (!effectiveChatId) return
-        await syncRecentMessages(effectiveChatId, setMessages, 2)
-      } catch (error) {
-        console.error("Message ID reconciliation failed: ", error)
-      }
-    },
-    onError: handleError,
-  })
+  // Initialize useChat
+  const { messages, status, error, regenerate, stop, setMessages, sendMessage } =
+    useChat<ZolaUIMessage>({
+      messages: initialMessages,
+      transport,
+      onFinish: async ({ message }) => {
+        cacheAndAddMessage(message)
+        try {
+          const effectiveChatId =
+            chatId ||
+            prevChatIdRef.current ||
+            (typeof window !== "undefined"
+              ? localStorage.getItem("guestChatId")
+              : null)
+
+          if (!effectiveChatId) return
+          await syncRecentMessages(effectiveChatId, setMessages, 2)
+        } catch (error) {
+          console.error("Message ID reconciliation failed: ", error)
+        }
+      },
+      onError: handleError,
+    })
+
+  // useChat v5+ reads `messages` only once; the provider loads history
+  // (cache, then DB) after mount, so push each load into the chat state.
+  useEffect(() => {
+    if (status === "streaming" || status === "submitted") return
+    setMessages(initialMessages)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMessages])
 
   // Handle search params on mount
   useEffect(() => {
     if (prompt && typeof window !== "undefined") {
       requestAnimationFrame(() => setInput(prompt))
     }
-  }, [prompt, setInput])
+  }, [prompt])
 
   // Reset messages when navigating from a chat to home
   if (
@@ -167,16 +186,18 @@ export function useChatCore({
     const optimisticAttachments =
       files.length > 0 ? createOptimisticAttachments(files) : []
 
-    const optimisticMessage = {
+    const optimisticMessage: ZolaUIMessage = {
       id: optimisticId,
-      content: input,
-      role: "user" as const,
-      createdAt: new Date(),
-      experimental_attachments:
-        optimisticAttachments.length > 0 ? optimisticAttachments : undefined,
+      role: "user",
+      parts: [
+        textPart(input),
+        ...attachmentsToFileParts(optimisticAttachments),
+      ],
+      metadata: { createdAt: new Date().toISOString() },
     }
 
     setMessages((prev) => [...prev, optimisticMessage])
+    const submittedInput = input
     setInput("")
 
     const submittedFiles = [...files]
@@ -186,26 +207,26 @@ export function useChatCore({
       const allowed = await checkLimitsAndNotify(uid)
       if (!allowed) {
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
-        cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+        cleanupOptimisticAttachments(optimisticAttachments)
         return
       }
 
-      const currentChatId = await ensureChatExists(uid, input, incognito)
+      const currentChatId = await ensureChatExists(uid, submittedInput, incognito)
       if (!currentChatId) {
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-        cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+        cleanupOptimisticAttachments(optimisticAttachments)
         return
       }
 
       prevChatIdRef.current = currentChatId
 
-      if (input.length > MESSAGE_MAX_LENGTH) {
+      if (submittedInput.length > MESSAGE_MAX_LENGTH) {
         toast({
           title: `The message you submitted was too long, please submit something shorter. (Max ${MESSAGE_MAX_LENGTH} characters)`,
           status: "error",
         })
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-        cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+        cleanupOptimisticAttachments(optimisticAttachments)
         return
       }
 
@@ -214,32 +235,41 @@ export function useChatCore({
         attachments = await handleFileUploads(uid, currentChatId)
         if (attachments === null) {
           setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
-          cleanupOptimisticAttachments(
-            optimisticMessage.experimental_attachments
-          )
+          cleanupOptimisticAttachments(optimisticAttachments)
           return
         }
       }
 
-      const options = {
-        body: {
-          chatId: currentChatId,
-          userId: uid,
-          model: selectedModel,
-          isAuthenticated,
-          systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
-          enableSearch,
-          incognito,
-          agentId,
-        },
-        experimental_attachments: attachments || undefined,
-      }
-
-      handleSubmit(undefined, options)
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-      cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+      cleanupOptimisticAttachments(optimisticAttachments)
+
+      sendMessage(
+        {
+          text: submittedInput,
+          files: attachmentsToFileParts(attachments),
+        },
+        {
+          body: {
+            chatId: currentChatId,
+            userId: uid,
+            model: selectedModel,
+            isAuthenticated,
+            systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
+            enableSearch,
+            incognito,
+            agentId,
+          },
+        }
+      )
+
       if (!incognito) {
-        cacheAndAddMessage(optimisticMessage)
+        cacheAndAddMessage({
+          ...optimisticMessage,
+          parts: [
+            textPart(submittedInput),
+            ...attachmentsToFileParts(attachments),
+          ],
+        })
       }
       clearDraft()
 
@@ -248,7 +278,7 @@ export function useChatCore({
       }
     } catch {
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-      cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+      cleanupOptimisticAttachments(optimisticAttachments)
       toast({ title: "Failed to send message", status: "error" })
     } finally {
       setIsSubmitting(false)
@@ -259,7 +289,6 @@ export function useChatCore({
     createOptimisticAttachments,
     input,
     setMessages,
-    setInput,
     setFiles,
     checkLimitsAndNotify,
     cleanupOptimisticAttachments,
@@ -269,7 +298,7 @@ export function useChatCore({
     isAuthenticated,
     systemPrompt,
     enableSearch,
-    handleSubmit,
+    sendMessage,
     cacheAndAddMessage,
     clearDraft,
     messages.length,
@@ -307,7 +336,7 @@ export function useChatCore({
       }
 
       const target = messages[editIndex]
-      const cutoffIso = target?.createdAt?.toISOString()
+      const cutoffIso = target?.metadata?.createdAt
       if (!cutoffIso) {
         console.error("Unable to locate message timestamp.")
         return
@@ -323,14 +352,14 @@ export function useChatCore({
 
       // Store original messages for potential rollback
       const originalMessages = [...messages]
+      const targetAttachments = target.parts.filter((p) => p.type === "file")
 
       const optimisticId = `optimistic-edit-${Date.now().toString()}`
-      const optimisticEditedMessage = {
+      const optimisticEditedMessage: ZolaUIMessage = {
         id: optimisticId,
-        content: newContent,
-        role: "user" as const,
-        createdAt: new Date(),
-        experimental_attachments: target.experimental_attachments || undefined,
+        role: "user",
+        parts: [textPart(newContent), ...targetAttachments],
+        metadata: { createdAt: new Date().toISOString() },
       }
 
       try {
@@ -367,22 +396,6 @@ export function useChatCore({
 
         prevChatIdRef.current = currentChatId
 
-        const options = {
-          body: {
-            chatId: currentChatId,
-            userId: uid,
-            model: selectedModel,
-            isAuthenticated,
-            systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
-            enableSearch,
-            incognito,
-            agentId,
-            editCutoffTimestamp: cutoffIso, // Backend will delete messages from this timestamp
-          },
-          experimental_attachments:
-            target.experimental_attachments || undefined,
-        }
-
         // If this is an edit of the very first user message, update chat title
         if (editIndex === 0 && target.role === "user") {
           try {
@@ -390,16 +403,25 @@ export function useChatCore({
           } catch {}
         }
 
-        append(
+        sendMessage(
           {
-            role: "user",
-            content: newContent,
+            text: newContent,
+            files: targetAttachments as FileUIPart[],
           },
-          options
+          {
+            body: {
+              chatId: currentChatId,
+              userId: uid,
+              model: selectedModel,
+              isAuthenticated,
+              systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
+              enableSearch,
+              incognito,
+              agentId,
+              editCutoffTimestamp: cutoffIso, // Backend will delete messages from this timestamp
+            },
+          }
         )
-
-        // Remove optimistic message
-        setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
 
         bumpChat(currentChatId)
       } catch (error) {
@@ -418,12 +440,14 @@ export function useChatCore({
       isAuthenticated,
       systemPrompt,
       enableSearch,
-      append,
+      sendMessage,
       setMessages,
       bumpChat,
       updateTitle,
       isSubmitting,
       status,
+      agentId,
+      incognito,
     ]
   )
 
@@ -432,11 +456,11 @@ export function useChatCore({
     async (suggestion: string) => {
       setIsSubmitting(true)
       const optimisticId = `optimistic-${Date.now().toString()}`
-      const optimisticMessage = {
+      const optimisticMessage: ZolaUIMessage = {
         id: optimisticId,
-        content: suggestion,
-        role: "user" as const,
-        createdAt: new Date(),
+        role: "user",
+        parts: [textPart(suggestion)],
+        metadata: { createdAt: new Date().toISOString() },
       }
 
       setMessages((prev) => [...prev, optimisticMessage])
@@ -464,26 +488,22 @@ export function useChatCore({
 
         prevChatIdRef.current = currentChatId
 
-        const options = {
-          body: {
-            chatId: currentChatId,
-            userId: uid,
-            model: selectedModel,
-            isAuthenticated,
-            systemPrompt: SYSTEM_PROMPT_DEFAULT,
-            incognito,
-            agentId,
-          },
-        }
-
-        append(
-          {
-            role: "user",
-            content: suggestion,
-          },
-          options
-        )
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
+
+        sendMessage(
+          { text: suggestion },
+          {
+            body: {
+              chatId: currentChatId,
+              userId: uid,
+              model: selectedModel,
+              isAuthenticated,
+              systemPrompt: SYSTEM_PROMPT_DEFAULT,
+              incognito,
+              agentId,
+            },
+          }
+        )
       } catch {
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
         toast({ title: "Failed to send suggestion", status: "error" })
@@ -495,11 +515,13 @@ export function useChatCore({
       ensureChatExists,
       selectedModel,
       user,
-      append,
+      sendMessage,
       checkLimitsAndNotify,
       isAuthenticated,
       setMessages,
       setIsSubmitting,
+      incognito,
+      agentId,
     ]
   )
 
@@ -510,7 +532,7 @@ export function useChatCore({
       return
     }
 
-    const options = {
+    regenerate({
       body: {
         chatId,
         userId: uid,
@@ -520,33 +542,38 @@ export function useChatCore({
         incognito,
         agentId,
       },
-    }
+    })
+  }, [
+    user,
+    chatId,
+    selectedModel,
+    isAuthenticated,
+    systemPrompt,
+    regenerate,
+    incognito,
+    agentId,
+  ])
 
-    reload(options)
-  }, [user, chatId, selectedModel, isAuthenticated, systemPrompt, reload, incognito, agentId])
-
-  // Handle input change - now with access to the real setInput function!
+  // Handle input change
   const { setDraftValue } = useChatDraft(chatId)
   const handleInputChange = useCallback(
     (value: string) => {
       setInput(value)
       setDraftValue(value)
     },
-    [setInput, setDraftValue]
+    [setDraftValue]
   )
 
   return {
     // Chat state
     messages,
     input,
-    handleSubmit,
     status,
     error,
-    reload,
     stop,
     setMessages,
     setInput,
-    append,
+    sendMessage,
     isAuthenticated,
     systemPrompt,
     hasSentFirstMessageRef,

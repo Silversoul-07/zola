@@ -1,16 +1,21 @@
 "use client"
 
+import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool"
+import { Shimmer } from "@/components/ai-elements/shimmer"
 import { cn } from "@/lib/utils"
-import type { ToolInvocationUIPart } from "@ai-sdk/ui-utils"
-import { Wrench } from "@phosphor-icons/react"
-import { getToolLabel } from "./tools/tool-labels"
+import type { UIMessage } from "ai"
+import { getToolLabel, getToolSummary } from "./tools/tool-labels"
 import { getToolRenderer } from "./tools"
-import { parseToolResult, ToolShell } from "./tools/tool-shell"
+import type { ToolUIPart } from "./tools/tool-shell"
 
 interface ToolInvocationProps {
-  toolInvocations: ToolInvocationUIPart[]
+  toolInvocations: UIMessage["parts"]
   className?: string
   defaultOpen?: boolean
+}
+
+function toolNameOf(type: string): string {
+  return type.startsWith("tool-") ? type.slice("tool-".length) : type
 }
 
 // Renders one compact transcript row per tool call, stacked with no gap so
@@ -21,38 +26,17 @@ export function ToolInvocation({
   className,
   defaultOpen = false,
 }: ToolInvocationProps) {
-  const toolInvocationsData = Array.isArray(toolInvocations)
-    ? toolInvocations
-    : [toolInvocations]
+  const toolParts = toolInvocations.filter(
+    (part) => part.type.startsWith("tool-") || part.type === "dynamic-tool"
+  ) as unknown as ToolUIPart[]
 
-  // Group by toolCallId and keep the most informative state per call
-  // (result > call > partial-call), since the same call can appear
-  // multiple times as it streams in.
-  const groupedTools = toolInvocationsData.reduce(
-    (acc, item) => {
-      const { toolCallId } = item.toolInvocation
-      ;(acc[toolCallId] ??= []).push(item)
-      return acc
-    },
-    {} as Record<string, ToolInvocationUIPart[]>
-  )
-
-  const toolsToDisplay = Object.values(groupedTools)
-    .map(
-      (group) =>
-        group.find((item) => item.toolInvocation.state === "result") ||
-        group.find((item) => item.toolInvocation.state === "call") ||
-        group.find((item) => item.toolInvocation.state === "partial-call")
-    )
-    .filter(Boolean) as ToolInvocationUIPart[]
-
-  if (toolsToDisplay.length === 0) return null
+  if (toolParts.length === 0) return null
 
   return (
     <div className={cn("mb-4 flex flex-col", className)}>
-      {toolsToDisplay.map((tool) => (
+      {toolParts.map((tool, i) => (
         <ToolCard
-          key={tool.toolInvocation.toolCallId}
+          key={tool.toolCallId ?? `${tool.type}-${i}`}
           toolData={tool}
           defaultOpen={defaultOpen}
         />
@@ -62,50 +46,52 @@ export function ToolInvocation({
 }
 
 // Dispatches to a dedicated per-tool renderer (compact, expandable, no raw
-// JSON) when one exists for this toolName; otherwise falls back to the
-// generic JSON-dump renderer below.
+// JSON) when one exists for this toolName; otherwise falls back to Elements'
+// generic ToolInput/ToolOutput JSON dump.
 function ToolCard({
   toolData,
   defaultOpen,
 }: {
-  toolData: ToolInvocationUIPart
+  toolData: ToolUIPart
   defaultOpen?: boolean
 }) {
-  const Renderer = getToolRenderer(toolData.toolInvocation.toolName)
-  if (Renderer) {
-    return <Renderer toolData={toolData} defaultOpen={defaultOpen} />
-  }
-  return <GenericToolCard toolData={toolData} defaultOpen={defaultOpen} />
-}
+  const toolName =
+    "toolName" in toolData
+      ? String((toolData as { toolName?: string }).toolName)
+      : toolNameOf(toolData.type)
+  const isRunning = toolData.state !== "output-available" && toolData.state !== "output-error"
+  const Renderer = getToolRenderer(toolName)
+  const headerProps =
+    toolData.type === "dynamic-tool"
+      ? { type: toolData.type, state: toolData.state, toolName }
+      : { type: toolData.type, state: toolData.state }
 
-function GenericToolCard({
-  toolData,
-  defaultOpen,
-}: {
-  toolData: ToolInvocationUIPart
-  defaultOpen?: boolean
-}) {
-  const { toolInvocation } = toolData
-  const { state, toolName, args } = toolInvocation
-  const isRunning = state !== "result"
-  const result = state === "result" ? parseToolResult(toolInvocation.result) : null
+  const label = getToolLabel(toolName, isRunning)
+  const summary = getToolSummary(toolData.input)
+  const title = (
+    <span className="flex min-w-0 items-center gap-2">
+      {isRunning ? <Shimmer as="span">{label}</Shimmer> : <span>{label}</span>}
+      {summary && (
+        <span className="text-muted-foreground truncate font-mono text-xs font-normal">
+          {summary}
+        </span>
+      )}
+    </span>
+  )
 
   return (
-    <ToolShell
-      icon={<Wrench />}
-      label={getToolLabel(toolName, isRunning)}
-      summary={toolName}
-      running={isRunning}
-      defaultOpen={defaultOpen}
-    >
-      <div className="space-y-2 font-mono text-xs">
-        {args && Object.keys(args).length > 0 && (
-          <pre className="whitespace-pre-wrap">{JSON.stringify(args, null, 2)}</pre>
+    <Tool defaultOpen={defaultOpen}>
+      <ToolHeader title={title} {...headerProps} />
+      <ToolContent>
+        {Renderer ? (
+          <Renderer toolName={toolName} toolData={toolData} />
+        ) : (
+          <>
+            <ToolInput input={toolData.input} />
+            <ToolOutput output={toolData.output} errorText={toolData.errorText} />
+          </>
         )}
-        {result != null && (
-          <pre className="whitespace-pre-wrap">{JSON.stringify(result, null, 2)}</pre>
-        )}
-      </div>
-    </ToolShell>
+      </ToolContent>
+    </Tool>
   )
 }

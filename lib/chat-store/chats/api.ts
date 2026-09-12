@@ -81,7 +81,7 @@ export async function createChat(
   userId: string,
   title: string,
   model: string,
-  systemPrompt: string
+  _systemPrompt: string
 ): Promise<string> {
   const chat = await createNewChat(userId, title, model, true, undefined)
   return chat.id

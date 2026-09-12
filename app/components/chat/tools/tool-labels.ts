@@ -32,3 +32,12 @@ export function getToolLabel(toolName: string, running: boolean): string {
   if (!entry) return toolName
   return running ? entry.running : entry.label
 }
+
+// Short argument shown next to the label in the row header (command, path,
+// query or URL), so a collapsed row still says what the call did.
+export function getToolSummary(input: unknown): string | undefined {
+  const i = (input && typeof input === "object" ? input : {}) as Record<string, unknown>
+  const v =
+    i.command ?? i.code ?? i.path ?? i.file_path ?? i.filePath ?? i.query ?? i.url ?? i.pattern
+  return typeof v === "string" && v.trim() ? v.trim() : undefined
+}

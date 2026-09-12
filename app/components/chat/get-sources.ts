@@ -1,29 +1,36 @@
-import type { Message as MessageAISDK } from "@ai-sdk/react"
+import { getToolName, isToolUIPart, type UIMessage } from "ai"
 
-export function getSources(parts: MessageAISDK["parts"]) {
-  const sources = parts
-    ?.filter(
-      (part) => part.type === "source" || part.type === "tool-invocation"
-    )
+type Source = { id?: string; url: string; title: string }
+
+// Pulls citation-style sources out of a message's parts: v5's own
+// source-url parts, plus our summarizeSources tool's citation payload.
+export function getSources(parts: UIMessage["parts"] | undefined): Source[] {
+  const sources = (parts ?? [])
     .map((part) => {
-      if (part.type === "source") {
-        return part.source
+      if (part.type === "source-url") {
+        return { id: part.sourceId, url: part.url, title: part.title || part.url }
       }
 
-      if (
-        part.type === "tool-invocation" &&
-        part.toolInvocation.state === "result"
-      ) {
-        const result = part.toolInvocation.result
+      if (isToolUIPart(part) && part.state === "output-available") {
+        const toolName = getToolName(part)
+        const output = part.output as
+          | { result?: Array<{ citations?: unknown[] }> }
+          | unknown[]
+          | undefined
 
         if (
-          part.toolInvocation.toolName === "summarizeSources" &&
-          result?.result?.[0]?.citations
+          toolName === "summarizeSources" &&
+          output &&
+          typeof output === "object" &&
+          "result" in output &&
+          Array.isArray(output.result)
         ) {
-          return result.result.flatMap((item: { citations?: unknown[] }) => item.citations || [])
+          return output.result.flatMap(
+            (item: { citations?: unknown[] }) => item.citations || []
+          )
         }
 
-        return Array.isArray(result) ? result.flat() : result
+        return Array.isArray(output) ? output.flat() : null
       }
 
       return null
@@ -31,11 +38,7 @@ export function getSources(parts: MessageAISDK["parts"]) {
     .filter(Boolean)
     .flat()
 
-  const validSources =
-    sources?.filter(
-      (source) =>
-        source && typeof source === "object" && source.url && source.url !== ""
-    ) || []
-
-  return validSources
+  return (sources as Source[]).filter(
+    (source) => source && typeof source === "object" && source.url
+  )
 }

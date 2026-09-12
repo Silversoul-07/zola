@@ -13,11 +13,13 @@ import {
   MessageActions,
   Message as MessageContainer,
   MessageContent,
-} from "@/components/prompt-kit/message"
+  MessageResponse,
+} from "@/components/ai-elements/message"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
+import { attachmentsFromMessage, textFromMessage } from "@/lib/chat-store/messages/api"
 import { cn } from "@/lib/utils"
-import { Message as MessageType } from "@ai-sdk/react"
+import type { UIMessage } from "ai"
 import {
   Check,
   Copy,
@@ -34,8 +36,7 @@ const getTextFromDataUrl = (dataUrl: string) => {
 
 export type MessageUserProps = {
   hasScrollAnchor?: boolean
-  attachments?: MessageType["experimental_attachments"]
-  children: string
+  parts: UIMessage["parts"]
   copied: boolean
   copyToClipboard: () => void
   id: string
@@ -48,8 +49,7 @@ export type MessageUserProps = {
 
 export function MessageUser({
   hasScrollAnchor,
-  attachments,
-  children,
+  parts,
   copied,
   copyToClipboard,
   id,
@@ -58,6 +58,8 @@ export function MessageUser({
   messageGroupId,
   isUserAuthenticated,
 }: MessageUserProps) {
+  const children = textFromMessage({ parts })
+  const attachments = attachmentsFromMessage({ parts })
   const [editInput, setEditInput] = useState(children)
   const [isEditing, setIsEditing] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -105,6 +107,7 @@ export function MessageUser({
 
   return (
     <MessageContainer
+      from="user"
       className={cn(
         "group flex w-full max-w-3xl flex-col items-end gap-0.5 px-6 pb-2",
         hasScrollAnchor && "min-h-scroll-anchor",
@@ -191,61 +194,51 @@ export function MessageUser({
         </div>
       ) : (
         <MessageContent
-          className="bg-accent prose dark:prose-invert relative max-w-[70%] rounded-3xl px-5 py-2.5"
-          markdown={true}
           ref={contentRef}
-          components={{
-            code: ({ children }) => <React.Fragment>{children}</React.Fragment>,
-            pre: ({ children }) => <React.Fragment>{children}</React.Fragment>,
-            h1: ({ children }) => <p>{children}</p>,
-            h2: ({ children }) => <p>{children}</p>,
-            h3: ({ children }) => <p>{children}</p>,
-            h4: ({ children }) => <p>{children}</p>,
-            h5: ({ children }) => <p>{children}</p>,
-            h6: ({ children }) => <p>{children}</p>,
-            p: ({ children }) => <p>{children}</p>,
-            li: ({ children }) => <p>- {children}</p>,
-            ul: ({ children }) => <React.Fragment>{children}</React.Fragment>,
-            ol: ({ children }) => <React.Fragment>{children}</React.Fragment>,
-          }}
+          className="bg-accent prose dark:prose-invert relative max-w-[70%] rounded-3xl px-5 py-2.5"
         >
-          {children}
+          <MessageResponse
+            components={{
+              code: ({ children }) => <React.Fragment>{children}</React.Fragment>,
+              pre: ({ children }) => <React.Fragment>{children}</React.Fragment>,
+              h1: ({ children }) => <p>{children}</p>,
+              h2: ({ children }) => <p>{children}</p>,
+              h3: ({ children }) => <p>{children}</p>,
+              h4: ({ children }) => <p>{children}</p>,
+              h5: ({ children }) => <p>{children}</p>,
+              h6: ({ children }) => <p>{children}</p>,
+              p: ({ children }) => <p>{children}</p>,
+              li: ({ children }) => <p>- {children}</p>,
+              ul: ({ children }) => <React.Fragment>{children}</React.Fragment>,
+              ol: ({ children }) => <React.Fragment>{children}</React.Fragment>,
+            }}
+          >
+            {children}
+          </MessageResponse>
         </MessageContent>
       )}
       <MessageActions className="flex gap-0 opacity-0 transition-opacity duration-0 group-hover:opacity-100">
-        <MessageAction tooltip={copied ? "Copied!" : "Copy text"} side="bottom">
-          <button
-            className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
-            aria-label="Copy text"
-            onClick={copyToClipboard}
-            type="button"
-          >
-            {copied ? (
-              <Check className="size-4" />
-            ) : (
-              <Copy className="size-4" />
-            )}
-          </button>
+        <MessageAction
+          tooltip={copied ? "Copied!" : "Copy text"}
+          label="Copy text"
+          className="hover:bg-accent/60 text-muted-foreground hover:text-foreground rounded-full bg-transparent"
+          onClick={copyToClipboard}
+        >
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </MessageAction>
         {messageGroupId === null && isUserAuthenticated && (
           // Enabled if NOT multi-model chat & user is Authenticated
           <MessageAction
             tooltip={isEditing ? "Cancel edit" : "Edit message"}
-            side="bottom"
-            delayDuration={0}
+            label={isEditing ? "Cancel edit" : "Edit message"}
+            className="hover:bg-accent/60 text-muted-foreground hover:text-foreground rounded-full bg-transparent"
+            onClick={isEditing ? handleEditCancel : handleEditStart}
           >
-            <button
-              className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
-              aria-label={isEditing ? "Cancel edit" : "Edit message"}
-              onClick={isEditing ? handleEditCancel : handleEditStart}
-              type="button"
-            >
-              {isEditing ? (
-                <PencilSimpleSlashIcon className="size-4" />
-              ) : (
-                <PencilSimpleIcon className="size-4" />
-              )}
-            </button>
+            {isEditing ? (
+              <PencilSimpleSlashIcon className="size-4" />
+            ) : (
+              <PencilSimpleIcon className="size-4" />
+            )}
           </MessageAction>
         )}
       </MessageActions>

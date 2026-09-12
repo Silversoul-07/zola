@@ -1,16 +1,15 @@
 import {
-  ChatContainerContent,
-  ChatContainerRoot,
-} from "@/components/prompt-kit/chat-container"
-import { ScrollButton } from "@/components/prompt-kit/scroll-button"
-import { ExtendedMessageAISDK } from "@/lib/chat-store/messages/api"
-import { Message as MessageType } from "@ai-sdk/react"
+  Conversation as ConversationRoot,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation"
+import type { ZolaUIMessage } from "@/lib/chat-store/messages/api"
 import { useRef } from "react"
 import { Loader } from "./loader"
 import { Message } from "./message"
 
 type ConversationProps = {
-  messages: MessageType[]
+  messages: ZolaUIMessage[]
   status?: "streaming" | "ready" | "submitted" | "error"
   onDelete: (id: string) => void
   onEdit: (id: string, newText: string) => void
@@ -39,8 +38,8 @@ export function Conversation({
         <div className="h-app-header bg-background flex w-full lg:hidden lg:h-0" />
         <div className="h-app-header bg-background flex w-full mask-b-from-4% mask-b-to-100% lg:hidden" />
       </div>
-      <ChatContainerRoot className="relative w-full">
-        <ChatContainerContent
+      <ConversationRoot className="relative w-full">
+        <ConversationContent
           className="flex w-full flex-col items-center pt-20 pb-4"
           style={{
             scrollbarGutter: "stable both-edges",
@@ -58,22 +57,17 @@ export function Conversation({
                 key={message.id}
                 id={message.id}
                 variant={message.role}
-                attachments={message.experimental_attachments}
+                parts={message.parts}
                 isLast={isLast}
                 onDelete={onDelete}
                 onEdit={onEdit}
                 onReload={onReload}
                 hasScrollAnchor={hasScrollAnchor}
-                parts={message.parts}
                 status={status}
                 onQuote={onQuote}
-                messageGroupId={
-                  (message as ExtendedMessageAISDK).message_group_id ?? null
-                }
+                messageGroupId={message.metadata?.message_group_id ?? null}
                 isUserAuthenticated={isUserAuthenticated}
-              >
-                {message.content}
-              </Message>
+              />
             )
           })}
           {status === "submitted" &&
@@ -83,11 +77,11 @@ export function Conversation({
                 <Loader />
               </div>
             )}
-          <div className="absolute bottom-0 flex w-full max-w-3xl flex-1 items-end justify-end gap-4 px-6 pb-2">
-            <ScrollButton className="absolute top-[-50px] right-[30px]" />
-          </div>
-        </ChatContainerContent>
-      </ChatContainerRoot>
+        </ConversationContent>
+        <div className="absolute bottom-0 flex w-full max-w-3xl flex-1 items-end justify-end gap-4 px-6 pb-2">
+          <ConversationScrollButton className="absolute top-[-50px] right-[30px] bottom-auto left-auto translate-x-0" />
+        </div>
+      </ConversationRoot>
     </div>
   )
 }

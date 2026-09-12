@@ -21,9 +21,21 @@ export const defaultPreferences: UserPreferences = {
 }
 
 // Helper functions to convert between API format (snake_case) and frontend format (camelCase)
-export function convertFromApiFormat(apiData: any): UserPreferences {
+type UserPreferencesApiFormat = {
+  layout?: string | null
+  prompt_suggestions?: boolean | null
+  show_tool_invocations?: boolean | null
+  show_conversation_previews?: boolean | null
+  multi_model_enabled?: boolean | null
+  hidden_models?: string[] | null
+  selected_agent_id?: string | null
+}
+
+export function convertFromApiFormat(
+  apiData: UserPreferencesApiFormat
+): UserPreferences {
   return {
-    layout: apiData.layout || "sidebar",
+    layout: (apiData.layout as LayoutType) || "sidebar",
     promptSuggestions: apiData.prompt_suggestions ?? true,
     showToolInvocations: apiData.show_tool_invocations ?? true,
     showConversationPreviews: apiData.show_conversation_previews ?? true,
@@ -34,7 +46,7 @@ export function convertFromApiFormat(apiData: any): UserPreferences {
 }
 
 export function convertToApiFormat(preferences: Partial<UserPreferences>) {
-  const apiData: any = {}
+  const apiData: UserPreferencesApiFormat = {}
   if (preferences.layout !== undefined) apiData.layout = preferences.layout
   if (preferences.promptSuggestions !== undefined)
     apiData.prompt_suggestions = preferences.promptSuggestions

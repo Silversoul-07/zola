@@ -1,8 +1,8 @@
 // Feeds a hand-written OpenCode /event SSE sample through the mapper and
-// asserts the AI SDK v4 data-stream lines it produces. Run with:
+// asserts the UI message stream chunks it produces. Run with:
 //   npx tsx scripts/opencode-stream.test.mjs
 import assert from "node:assert/strict"
-import { opencodeEventsToDataStream } from "../lib/opencode/stream.ts"
+import { opencodeEventsToUIMessageStream } from "../lib/opencode/stream.ts"
 
 const SESSION_ID = "sess_1"
 
@@ -81,58 +81,58 @@ const sourceStream = new ReadableStream({
   },
 })
 
-let finishPayload
-const out = opencodeEventsToDataStream(sourceStream, {
+let finishedMessage
+const uiStream = opencodeEventsToUIMessageStream(sourceStream, {
   sessionId: SESSION_ID,
-  onFinish: (payload) => {
-    finishPayload = payload
+  onFinish: ({ message }) => {
+    finishedMessage = message
   },
 })
 
-const reader = out.getReader()
-const decoder = new TextDecoder()
-let text = ""
+const reader = uiStream.getReader()
+const chunks = []
 for (;;) {
   const { done, value } = await reader.read()
   if (done) break
-  text += decoder.decode(value)
+  chunks.push(value)
 }
 
-const lines = text.split("\n").filter(Boolean)
-console.log(text)
+console.log(JSON.stringify(chunks, null, 2))
 
-assert.equal(lines[0], '0:"Hel"')
-assert.equal(lines[1], '0:"lo"')
+const types = chunks.map((c) => c.type)
+assert.ok(types.includes("start"), "expected a start chunk")
+assert.ok(types.includes("text-start"), "expected a text-start chunk")
 
-const toolCallLine = lines.find((l) => l.startsWith("9:"))
-assert.ok(toolCallLine, "expected a 9: tool_call line")
-assert.deepEqual(JSON.parse(toolCallLine.slice(2)), {
-  toolCallId: "call_1",
-  toolName: "terminal",
-  args: { command: "ls" },
-})
+const textDeltas = chunks.filter((c) => c.type === "text-delta")
+assert.equal(
+  textDeltas.map((c) => c.delta).join(""),
+  "Hello",
+  "expected text deltas to reassemble to 'Hello'"
+)
 
-const toolResultLine = lines.find((l) => l.startsWith("a:"))
-assert.ok(toolResultLine, "expected an a: tool_result line")
-assert.deepEqual(JSON.parse(toolResultLine.slice(2)), {
-  toolCallId: "call_1",
-  result: { output: "file1\nfile2" },
-})
+const toolInputChunk = chunks.find((c) => c.type === "tool-input-available")
+assert.ok(toolInputChunk, "expected a tool-input-available chunk")
+assert.equal(toolInputChunk.toolCallId, "call_1")
+assert.equal(toolInputChunk.toolName, "terminal")
+assert.deepEqual(toolInputChunk.input, { command: "ls" })
 
-const finishStepLine = lines.find((l) => l.startsWith("e:"))
-assert.ok(finishStepLine, "expected an e: finish_step line")
-assert.deepEqual(JSON.parse(finishStepLine.slice(2)), {
-  finishReason: "stop",
-  isContinued: false,
-})
+const toolOutputChunk = chunks.find((c) => c.type === "tool-output-available")
+assert.ok(toolOutputChunk, "expected a tool-output-available chunk")
+assert.equal(toolOutputChunk.toolCallId, "call_1")
+assert.deepEqual(toolOutputChunk.output, { output: "file1\nfile2" })
 
-const finishMessageLine = lines.find((l) => l.startsWith("d:"))
-assert.ok(finishMessageLine, "expected a d: finish_message line")
-assert.deepEqual(JSON.parse(finishMessageLine.slice(2)), {
-  finishReason: "stop",
-})
+assert.ok(types.includes("finish"), "expected a finish chunk")
 
-assert.equal(finishPayload.text, "Hello")
-assert.equal(finishPayload.toolParts.length, 2)
+assert.ok(finishedMessage, "expected onFinish to receive the reconstructed message")
+const finishedText = finishedMessage.parts
+  .filter((p) => p.type === "text")
+  .map((p) => p.text)
+  .join("")
+assert.equal(finishedText, "Hello")
+const finishedToolPart = finishedMessage.parts.find(
+  (p) => p.type === "tool-terminal"
+)
+assert.ok(finishedToolPart, "expected a tool-terminal part on the reconstructed message")
+assert.equal(finishedToolPart.state, "output-available")
 
 console.log("opencode-stream.test.mjs: all assertions passed")

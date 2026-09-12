@@ -1,6 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { toast } from "@/components/ui/toast"
+import { API_ROUTE_CHAT } from "@/lib/routes"
 import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai"
 import { useMemo, useRef } from "react"
 
 type ModelConfig = {
@@ -9,11 +10,18 @@ type ModelConfig = {
   provider: string
 }
 
+type SendMessageOptions = {
+  body?: Record<string, unknown>
+}
+
 type ModelChat = {
   model: ModelConfig
-  messages: any[]
+  messages: UIMessage[]
   isLoading: boolean
-  append: (message: any, options?: any) => void
+  sendMessage: (
+    message: { text: string; files?: FileUIPart[] },
+    options?: SendMessageOptions
+  ) => void
   stop: () => void
 }
 
@@ -57,11 +65,16 @@ export function useMultiChat(models: ModelConfig[]): ModelChat[] {
     return result
   }, [models])
 
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api: API_ROUTE_CHAT }),
+    []
+  )
+
   // Create a fixed number of useChat hooks to avoid conditional hook calls
   const chatHooks = Array.from({ length: MAX_MODELS }, (_, index) =>
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useChat({
-      api: "/api/chat",
+      transport,
       onError: (error) => {
         const model = modelsBySlot[index]
         if (model) {
@@ -82,19 +95,21 @@ export function useMultiChat(models: ModelConfig[]): ModelChat[] {
     modelsBySlot.forEach((model, index) => {
       if (!model) return
       const chatHook = chatHooks[index]
+      const isLoading =
+        chatHook.status === "submitted" || chatHook.status === "streaming"
       instances.push({
         model,
         messages: chatHook.messages,
-        isLoading: chatHook.isLoading,
-        append: (message: any, options?: any) => {
-          return chatHook.append(message, options)
+        isLoading,
+        sendMessage: (message, options) => {
+          chatHook.sendMessage(message, options)
         },
         stop: chatHook.stop,
       })
     })
     return instances
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modelsBySlot, ...chatHooks.flatMap((chat) => [chat.messages, chat.isLoading])])
+  }, [modelsBySlot, ...chatHooks.flatMap((chat) => [chat.messages, chat.status])])
 
   return activeChatInstances
 }

@@ -1,59 +1,42 @@
-// Feeds a hand-written Hermes /v1/responses SSE sample through the mapper and
-// asserts the AI SDK v4 data-stream lines it produces. Run with:
+// Feeds a hand-written Hermes /v1/responses SSE sample through the mapper
+// and asserts the UI message stream chunks it produces. Run with:
 //   npx tsx scripts/hermes-stream.test.mjs
 import assert from "node:assert/strict"
-import { hermesResponsesToDataStream } from "../lib/hermes/stream.ts"
+import { hermesResponsesToUIMessageStream } from "../lib/hermes/stream.ts"
 
-const frames = [
-  {
-    type: "response.output_text.delta",
-    delta: "Hello, ",
-  },
-  {
-    type: "response.output_text.delta",
-    delta: "world!",
-  },
+const events = [
+  { type: "response.created" },
+  { type: "response.output_text.delta", delta: "Hel" },
+  { type: "response.output_text.delta", delta: "lo" },
   {
     type: "response.output_item.done",
-    output_index: 1,
     item: {
-      id: "fc_1",
       type: "function_call",
       status: "completed",
-      name: "get_weather",
-      call_id: "call_abc",
-      arguments: '{"city":"Paris"}',
+      call_id: "call_1",
+      name: "terminal",
+      arguments: JSON.stringify({ command: "echo hi" }),
     },
   },
   {
     type: "response.output_item.done",
-    output_index: 2,
     item: {
-      id: "fco_1",
       type: "function_call_output",
-      call_id: "call_abc",
-      status: "completed",
-      output: [{ type: "input_text", text: '{"tempC":21}' }],
+      call_id: "call_1",
+      output: [{ text: JSON.stringify({ output: "hi" }) }],
     },
   },
   {
     type: "response.completed",
-    response: {
-      id: "resp_1",
-      status: "completed",
-      usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
-    },
+    response: { usage: { input_tokens: 10, output_tokens: 2 } },
   },
 ]
 
-const sseText = frames
-  .map((f) => `event: ${f.type}\ndata: ${JSON.stringify(f)}\n\n`)
-  .join("")
+const sseText = events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + "data: [DONE]\n\n"
 
 const encoder = new TextEncoder()
 const sourceStream = new ReadableStream({
   start(controller) {
-    // Split across two chunks to exercise the buffer/frame-boundary logic.
     const bytes = encoder.encode(sseText)
     const mid = Math.floor(bytes.length / 2)
     controller.enqueue(bytes.slice(0, mid))
@@ -62,53 +45,56 @@ const sourceStream = new ReadableStream({
   },
 })
 
-const out = hermesResponsesToDataStream(sourceStream, { messageId: "msg_1" })
-const reader = out.getReader()
-const decoder = new TextDecoder()
-let text = ""
+let finishedMessage
+const uiStream = hermesResponsesToUIMessageStream(sourceStream, {
+  onFinish: ({ message }) => {
+    finishedMessage = message
+  },
+})
+
+const reader = uiStream.getReader()
+const chunks = []
 for (;;) {
   const { done, value } = await reader.read()
   if (done) break
-  text += decoder.decode(value)
+  chunks.push(value)
 }
 
-const lines = text.split("\n").filter(Boolean)
-console.log(text)
+console.log(JSON.stringify(chunks, null, 2))
 
-assert.equal(lines[0], 'f:{"messageId":"msg_1"}')
-assert.equal(lines[1], '0:"Hello, "')
-assert.equal(lines[2], '0:"world!"')
+const types = chunks.map((c) => c.type)
+assert.ok(types.includes("start"), "expected a start chunk")
 
-const toolCallLine = lines.find((l) => l.startsWith("9:"))
-assert.ok(toolCallLine, "expected a 9: tool_call line")
-const toolCall = JSON.parse(toolCallLine.slice(2))
-assert.deepEqual(toolCall, {
-  toolCallId: "call_abc",
-  toolName: "get_weather",
-  args: { city: "Paris" },
-})
+const textDeltas = chunks.filter((c) => c.type === "text-delta")
+assert.equal(
+  textDeltas.map((c) => c.delta).join(""),
+  "Hello",
+  "expected text deltas to reassemble to 'Hello'"
+)
 
-const toolResultLine = lines.find((l) => l.startsWith("a:"))
-assert.ok(toolResultLine, "expected an a: tool_result line")
-const toolResult = JSON.parse(toolResultLine.slice(2))
-assert.deepEqual(toolResult, {
-  toolCallId: "call_abc",
-  result: { tempC: 21 },
-})
+const toolInputChunk = chunks.find((c) => c.type === "tool-input-available")
+assert.ok(toolInputChunk, "expected a tool-input-available chunk")
+assert.equal(toolInputChunk.toolCallId, "call_1")
+assert.equal(toolInputChunk.toolName, "terminal")
+assert.deepEqual(toolInputChunk.input, { command: "echo hi" })
 
-const finishStepLine = lines.find((l) => l.startsWith("e:"))
-assert.ok(finishStepLine, "expected an e: finish_step line")
-assert.deepEqual(JSON.parse(finishStepLine.slice(2)), {
-  finishReason: "stop",
-  usage: { promptTokens: 10, completionTokens: 5 },
-  isContinued: false,
-})
+const toolOutputChunk = chunks.find((c) => c.type === "tool-output-available")
+assert.ok(toolOutputChunk, "expected a tool-output-available chunk")
+assert.equal(toolOutputChunk.toolCallId, "call_1")
+assert.deepEqual(toolOutputChunk.output, { output: "hi" })
 
-const finishMessageLine = lines.find((l) => l.startsWith("d:"))
-assert.ok(finishMessageLine, "expected a d: finish_message line")
-assert.deepEqual(JSON.parse(finishMessageLine.slice(2)), {
-  finishReason: "stop",
-  usage: { promptTokens: 10, completionTokens: 5 },
-})
+assert.ok(types.includes("finish"), "expected a finish chunk")
+
+assert.ok(finishedMessage, "expected onFinish to receive the reconstructed message")
+const finishedText = finishedMessage.parts
+  .filter((p) => p.type === "text")
+  .map((p) => p.text)
+  .join("")
+assert.equal(finishedText, "Hello")
+const finishedToolPart = finishedMessage.parts.find(
+  (p) => p.type === "tool-terminal"
+)
+assert.ok(finishedToolPart, "expected a tool-terminal part on the reconstructed message")
+assert.equal(finishedToolPart.state, "output-available")
 
 console.log("hermes-stream.test.mjs: all assertions passed")

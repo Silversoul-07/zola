@@ -1,19 +1,18 @@
-import { Message as MessageType } from "@ai-sdk/react"
+import { textFromMessage } from "@/lib/chat-store/messages/api"
+import type { UIMessage } from "ai"
 import React, { useState } from "react"
 import { MessageAssistant } from "./message-assistant"
 import { MessageUser } from "./message-user"
 
 type MessageProps = {
-  variant: MessageType["role"]
-  children: string
+  variant: UIMessage["role"]
   id: string
-  attachments?: MessageType["experimental_attachments"]
+  parts: UIMessage["parts"]
   isLast?: boolean
   onDelete: (id: string) => void
   onEdit: (id: string, newText: string) => Promise<void> | void
   onReload: () => void
   hasScrollAnchor?: boolean
-  parts?: MessageType["parts"]
   status?: "streaming" | "ready" | "submitted" | "error"
   className?: string
   onQuote?: (text: string, messageId: string) => void
@@ -23,14 +22,12 @@ type MessageProps = {
 
 export function Message({
   variant,
-  children,
   id,
-  attachments,
+  parts,
   isLast,
   onEdit,
   onReload,
   hasScrollAnchor,
-  parts,
   status,
   className,
   onQuote,
@@ -38,9 +35,10 @@ export function Message({
   isUserAuthenticated,
 }: MessageProps) {
   const [copied, setCopied] = useState(false)
+  const text = textFromMessage({ parts })
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(children)
+    navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 500)
   }
@@ -54,13 +52,11 @@ export function Message({
         onEdit={onEdit}
         id={id}
         hasScrollAnchor={hasScrollAnchor}
-        attachments={attachments}
+        parts={parts}
         className={className}
         messageGroupId={messageGroupId}
         isUserAuthenticated={isUserAuthenticated}
-      >
-        {children}
-      </MessageUser>
+      />
     )
   }
 
@@ -77,9 +73,7 @@ export function Message({
         className={className}
         messageId={id}
         onQuote={onQuote}
-      >
-        {children}
-      </MessageAssistant>
+      />
     )
   }
 

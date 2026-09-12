@@ -8,9 +8,10 @@ import { useMessages } from "@/lib/chat-store/messages/provider"
 import { useChatSession } from "@/lib/chat-store/session/provider"
 import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { useModel } from "@/lib/model-store/provider"
+import { textFromMessage } from "@/lib/chat-store/messages/api"
 import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
-import { Message as MessageType } from "@ai-sdk/react"
+import type { UIMessage as MessageType } from "ai"
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { MultiChatInput } from "./multi-chat-input"
@@ -27,6 +28,10 @@ type GroupedMessage = {
   onDelete: (model: string, id: string) => void
   onEdit: (model: string, id: string, newText: string) => void
   onReload: (model: string) => void
+}
+
+function modelOf(msg: MessageType): string | undefined {
+  return (msg.metadata as { model?: string } | undefined)?.model
 }
 
 export function MultiChat() {
@@ -53,8 +58,8 @@ export function MultiChat() {
 
   const modelsFromPersisted = useMemo(() => {
     return persistedMessages
-      .filter((msg) => (msg as any).model)
-      .map((msg) => (msg as any).model)
+      .filter((msg) => modelOf(msg))
+      .map((msg) => modelOf(msg))
   }, [persistedMessages])
 
   const modelsFromLastGroup = useMemo(() => {
@@ -68,8 +73,8 @@ export function MultiChat() {
     for (let i = lastUserIndex + 1; i < persistedMessages.length; i++) {
       const msg = persistedMessages[i]
       if (msg.role === "user") break
-      if (msg.role === "assistant" && (msg as any).model) {
-        modelsInLastGroup.push((msg as any).model)
+      if (msg.role === "assistant" && modelOf(msg)) {
+        modelsInLastGroup.push(modelOf(msg) as string)
       }
     }
     return modelsInLastGroup
@@ -114,7 +119,7 @@ export function MultiChat() {
       const message = persistedMessages[i]
 
       if (message.role === "user") {
-        const groupKey = message.content
+        const groupKey = textFromMessage(message)
         if (!groups[groupKey]) {
           groups[groupKey] = {
             userMessage: message,
@@ -131,7 +136,7 @@ export function MultiChat() {
         }
 
         if (associatedUserMessage) {
-          const groupKey = associatedUserMessage.content
+          const groupKey = textFromMessage(associatedUserMessage)
           if (!groups[groupKey]) {
             groups[groupKey] = {
               userMessage: associatedUserMessage,
@@ -149,7 +154,7 @@ export function MultiChat() {
           userMessage: group.userMessage,
           responses: group.assistantMessages.map((msg, index) => {
             const model =
-              (msg as any).model || selectedModelIds[index] || `model-${index}`
+              modelOf(msg) || selectedModelIds[index] || `model-${index}`
             const provider =
               models.find((m) => m.id === model)?.provider || "unknown"
 
@@ -180,7 +185,7 @@ export function MultiChat() {
         const assistantMsg = chat.messages[i + 1]
 
         if (userMsg?.role === "user") {
-          const groupKey = userMsg.content
+          const groupKey = textFromMessage(userMsg)
 
           if (!liveGroups[groupKey]) {
             liveGroups[groupKey] = {
@@ -207,13 +212,13 @@ export function MultiChat() {
             }
           } else if (
             chat.isLoading &&
-            userMsg.content === prompt &&
+            textFromMessage(userMsg) === prompt &&
             selectedModelIds.includes(chat.model.id)
           ) {
             const placeholderMessage: MessageType = {
               id: `loading-${chat.model.id}`,
               role: "assistant",
-              content: "",
+              parts: [],
             }
             liveGroups[groupKey].responses.push({
               model: chat.model.id,
@@ -283,7 +288,7 @@ export function MultiChat() {
             },
           }
 
-          chat.append({ role: "user", content: prompt }, options)
+          chat.sendMessage({ text: prompt }, options)
         })
       )
 
@@ -388,7 +393,7 @@ export function MultiChat() {
             transition={{ layout: { duration: 0 } }}
           >
             <h1 className="mb-6 text-3xl font-medium tracking-tight">
-              What's on your mind?
+              What&apos;s on your mind?
             </h1>
           </motion.div>
         ) : (

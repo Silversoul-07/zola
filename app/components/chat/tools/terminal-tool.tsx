@@ -1,12 +1,9 @@
 "use client"
 
-import { Terminal } from "@phosphor-icons/react"
-import { getToolLabel } from "./tool-labels"
 import {
   CodeOutput,
   ExitCodeBadge,
   parseToolResult,
-  ToolShell,
   type ToolBodyProps,
 } from "./tool-shell"
 
@@ -17,41 +14,35 @@ type TerminalResult = {
 }
 
 // terminal / execute_code / process_manage
-export function TerminalTool({ toolData, defaultOpen, className }: ToolBodyProps) {
-  const { toolInvocation } = toolData
-  const { state, args, toolName } = toolInvocation
-  const isRunning = state !== "result"
-  const command = (args?.command ?? args?.code ?? "") as string
+export function TerminalTool({ toolData, className }: ToolBodyProps) {
+  const { state } = toolData
+  const args = toolData.input as Record<string, unknown> | undefined
   const result =
-    state === "result"
-      ? (parseToolResult(toolInvocation.result) as TerminalResult | null)
+    state === "output-available"
+      ? (parseToolResult(toolData.output) as TerminalResult | null)
       : null
 
-  const hasError = result?.error != null && result.error !== ""
+  const hasError =
+    state === "output-error" || (result?.error != null && result.error !== "")
   const exitCode = result?.exit_code
+  const command = (args?.command ?? args?.code ?? "") as string
 
   return (
-    <ToolShell
-      icon={<Terminal />}
-      label={getToolLabel(toolName, isRunning)}
-      summary={command}
-      running={isRunning}
-      error={hasError}
-      defaultOpen={defaultOpen}
-      className={className}
-      badge={
-        typeof exitCode === "number" ? <ExitCodeBadge code={exitCode} /> : undefined
-      }
-    >
+    <div className={className}>
       {result ? (
         <div className="space-y-2">
-          {command && (
-            <pre className="text-muted-foreground m-0 whitespace-pre-wrap break-all font-mono text-xs">
-              <span aria-hidden className="select-none">
-                $
-              </span>{" "}
-              {command}
-            </pre>
+          {(command || typeof exitCode === "number") && (
+            <div className="flex items-center justify-between gap-2">
+              {command && (
+                <pre className="text-muted-foreground m-0 min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-xs">
+                  <span aria-hidden className="select-none">
+                    $
+                  </span>{" "}
+                  {command}
+                </pre>
+              )}
+              {typeof exitCode === "number" && <ExitCodeBadge code={exitCode} />}
+            </div>
           )}
           {hasError ? (
             <CodeOutput code={String(result.error)} className="[&_pre]:!text-red-500" />
@@ -62,6 +53,6 @@ export function TerminalTool({ toolData, defaultOpen, className }: ToolBodyProps
       ) : (
         <div className="text-muted-foreground text-xs">Waiting for output…</div>
       )}
-    </ToolShell>
+    </div>
   )
 }

@@ -1,7 +1,7 @@
 import { env } from "@/lib/openproviders/env"
-import type { Message as MessageAISDK } from "ai"
+import type { UIMessage } from "ai"
 
-// Builds OpenAI Responses API `input` items from Zola's AI SDK messages.
+// Builds OpenAI Responses API `input` items from Zola's v5 UIMessages.
 // User turns use "input_text"/"input_image" parts, assistant history uses
 // "output_text" parts, per the Responses API input schema.
 type ResponsesContentPart =
@@ -14,20 +14,28 @@ type ResponsesInputItem = {
   content: ResponsesContentPart[]
 }
 
-function toInputItems(messages: MessageAISDK[]): ResponsesInputItem[] {
+function toInputItems(messages: UIMessage[]): ResponsesInputItem[] {
   return messages
     .filter(
-      (m): m is MessageAISDK & { role: "user" | "assistant" } =>
+      (m): m is UIMessage & { role: "user" | "assistant" } =>
         m.role === "user" || m.role === "assistant"
     )
     .map((m) => {
       const textType = m.role === "user" ? "input_text" : "output_text"
       const parts: ResponsesContentPart[] = []
-      if (m.content) parts.push({ type: textType, text: m.content })
+      const text = m.parts
+        .filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("")
+      if (text) parts.push({ type: textType, text })
       if (m.role === "user") {
-        for (const attachment of m.experimental_attachments ?? []) {
-          if (attachment.contentType?.startsWith("image/") && attachment.url) {
-            parts.push({ type: "input_image", image_url: attachment.url })
+        for (const part of m.parts) {
+          if (
+            part.type === "file" &&
+            part.mediaType?.startsWith("image/") &&
+            part.url
+          ) {
+            parts.push({ type: "input_image", image_url: part.url })
           }
         }
       }
@@ -36,7 +44,7 @@ function toInputItems(messages: MessageAISDK[]): ResponsesInputItem[] {
 }
 
 type HermesRequestArgs = {
-  messages: MessageAISDK[]
+  messages: UIMessage[]
   model: string
   chatId: string
   systemPrompt?: string

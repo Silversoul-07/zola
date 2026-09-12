@@ -1,9 +1,7 @@
 "use client"
 
-import { Globe } from "@phosphor-icons/react"
 import type { ReactNode } from "react"
-import { getToolLabel } from "./tool-labels"
-import { CodeOutput, parseToolResult, ToolShell, type ToolBodyProps } from "./tool-shell"
+import { CodeOutput, parseToolResult, type ToolBodyProps } from "./tool-shell"
 
 type LinkItem = { title?: string; url?: string; snippet?: string }
 
@@ -19,12 +17,12 @@ function hostname(url?: string) {
 }
 
 // web_search / web_extract / browser_navigate
-export function WebTool({ toolData, defaultOpen, className }: ToolBodyProps) {
-  const { toolInvocation } = toolData
-  const { state, args, toolName } = toolInvocation
-  const isRunning = state !== "result"
+export function WebTool({ toolName, toolData, className }: ToolBodyProps) {
+  const { state } = toolData
+  const args = toolData.input as Record<string, unknown> | undefined
+  const isRunning = state !== "output-available" && state !== "output-error"
   const detail = (args?.query ?? args?.url) as string | undefined
-  const result = state === "result" ? parseToolResult(toolInvocation.result) : null
+  const result = state === "output-available" ? parseToolResult(toolData.output) : null
   const resultObj = (result && typeof result === "object" ? result : {}) as Record<
     string,
     unknown
@@ -89,15 +87,11 @@ export function WebTool({ toolData, defaultOpen, className }: ToolBodyProps) {
   }
 
   return (
-    <ToolShell
-      icon={<Globe />}
-      label={getToolLabel(toolName, isRunning)}
-      summary={detail}
-      running={isRunning}
-      defaultOpen={defaultOpen}
-      className={className}
-    >
+    <div className={className}>
+      {detail && (
+        <div className="text-muted-foreground mb-2 truncate text-xs">{detail}</div>
+      )}
       {body}
-    </ToolShell>
+    </div>
   )
 }

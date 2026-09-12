@@ -1,8 +1,6 @@
 "use client"
 
-import { Image as ImageIcon } from "@phosphor-icons/react"
-import { getToolLabel } from "./tool-labels"
-import { parseToolResult, ToolShell, type ToolBodyProps } from "./tool-shell"
+import { parseToolResult, type ToolBodyProps } from "./tool-shell"
 
 function findImageUrl(result: unknown): string | undefined {
   if (!result || typeof result !== "object") return undefined
@@ -19,23 +17,15 @@ function findCaption(result: unknown): string | undefined {
 }
 
 // vision_analyze / image_generate
-export function MediaTool({ toolData, defaultOpen, className }: ToolBodyProps) {
-  const { toolInvocation } = toolData
-  const { state, toolName } = toolInvocation
-  const isRunning = state !== "result"
-  const result = state === "result" ? parseToolResult(toolInvocation.result) : null
+export function MediaTool({ toolName, toolData, className }: ToolBodyProps) {
+  const { state } = toolData
+  const isRunning = state !== "output-available" && state !== "output-error"
+  const result = state === "output-available" ? parseToolResult(toolData.output) : null
   const imageUrl = findImageUrl(result)
   const caption = findCaption(result)
 
   return (
-    <ToolShell
-      icon={<ImageIcon />}
-      label={getToolLabel(toolName, isRunning)}
-      summary={caption}
-      running={isRunning}
-      defaultOpen={defaultOpen}
-      className={className}
-    >
+    <div className={className}>
       {imageUrl ? (
         <div className="space-y-2">
           {/* eslint-disable-next-line @next/next/no-img-element -- tool result URL, not a build-time asset */}
@@ -51,6 +41,6 @@ export function MediaTool({ toolData, defaultOpen, className }: ToolBodyProps) {
           {isRunning ? "Processing…" : caption || "No image"}
         </div>
       )}
-    </ToolShell>
+    </div>
   )
 }
