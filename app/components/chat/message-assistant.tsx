@@ -17,6 +17,7 @@ import { getToolName, isToolUIPart, type UIMessage } from "ai"
 import { ArrowClockwise, Check, Copy } from "@phosphor-icons/react"
 import { useCallback, useRef } from "react"
 import { getSources } from "./get-sources"
+import { type OpencodePermissionData, PermissionCard } from "./permission-card"
 import { QuoteButton } from "./quote-button"
 import { SearchImages } from "./search-images"
 import { SourcesList } from "./sources-list"
@@ -52,6 +53,11 @@ export function MessageAssistant({
   const children = textFromMessage({ parts })
   const sources = getSources(parts)
   const toolInvocationParts = parts?.filter(isToolUIPart) ?? []
+  const permissionParts =
+    parts?.filter(
+      (part): part is { type: "data-opencode-permission"; id?: string; data: OpencodePermissionData } =>
+        part.type === "data-opencode-permission"
+    ) ?? []
   const reasoningPart = parts?.find(
     (part): part is { type: "reasoning"; text: string } => part.type === "reasoning"
   )
@@ -111,6 +117,10 @@ export function MessageAssistant({
         {toolInvocationParts.length > 0 && preferences.showToolInvocations && (
           <ToolInvocation toolInvocations={toolInvocationParts} />
         )}
+
+        {permissionParts.map((part) => (
+          <PermissionCard key={part.id ?? part.data.id} data={part.data} />
+        ))}
 
         {searchImageResults.length > 0 && (
           <SearchImages results={searchImageResults as never[]} />

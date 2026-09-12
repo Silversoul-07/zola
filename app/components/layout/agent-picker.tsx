@@ -6,6 +6,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useChats } from "@/lib/chat-store/chats/provider"
+import { useChatSession } from "@/lib/chat-store/session/provider"
 import { AGENTS } from "@/lib/config"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { CaretDownIcon, CheckIcon, CpuIcon } from "@phosphor-icons/react"
@@ -15,11 +17,17 @@ const triggerClassName =
 
 export function AgentPicker() {
   const { preferences, setSelectedAgentId } = useUserPreferences()
+  // A chat started with a given agent keeps showing that agent here,
+  // regardless of what the header preference has moved on to since
+  // (see .claude/docs/runtime-coverage.md item 4).
+  const { chatId } = useChatSession()
+  const { getChatById } = useChats()
+  const chatAgentId = chatId ? getChatById(chatId)?.agent_id : undefined
 
   if (AGENTS.length === 0) return null
 
   const selectedAgent =
-    AGENTS.find((agent) => agent.id === preferences.selectedAgentId) ||
+    AGENTS.find((agent) => agent.id === (chatAgentId || preferences.selectedAgentId)) ||
     AGENTS[0]
 
   // Only one runtime configured: show a non-interactive label instead of a

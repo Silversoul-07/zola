@@ -4,7 +4,7 @@ import { toast } from "@/components/ui/toast"
 import { getOrCreateGuestUserId } from "@/lib/api"
 import { useChats } from "@/lib/chat-store/chats/provider"
 import type { ZolaUIMessage } from "@/lib/chat-store/messages/api"
-import { MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
+import { AGENTS, MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import type { Attachment } from "@/lib/file-handling"
 import { getEffectiveAgentId } from "@/lib/config"
 import { API_ROUTE_CHAT } from "@/lib/routes"
@@ -41,6 +41,8 @@ type UseChatCoreProps = {
   clearDraft: () => void
   bumpChat: (chatId: string) => void
   incognito?: boolean
+  /** This chat's stored agent (chats.agent_id), overrides the header preference for this chat only. */
+  chatAgentId?: string | null
 }
 
 function attachmentsToFileParts(attachments?: Attachment[] | null): FileUIPart[] {
@@ -74,6 +76,7 @@ export function useChatCore({
   clearDraft,
   bumpChat,
   incognito = false,
+  chatAgentId,
 }: UseChatCoreProps) {
   // State management
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -83,8 +86,15 @@ export function useChatCore({
   const [input, setInput] = useState(draftValue)
 
   // Header AgentPicker selection (mirrors the default in agent-picker.tsx).
+  // A chat that was started with a given agent keeps that agent when
+  // reopened, regardless of what the header preference has moved on to.
   const { preferences } = useUserPreferences()
-  const agentId = getEffectiveAgentId(preferences.selectedAgentId)
+  const agentId = chatAgentId || getEffectiveAgentId(preferences.selectedAgentId)
+  const runtime = AGENTS.find((a) => a.id === agentId)?.runtime
+
+  // OpenCode agent mode picker (build/plan/...); not persisted, resets to
+  // "build" per session/chat (see .claude/docs/runtime-coverage.md item 2).
+  const [agentMode, setAgentMode] = useState("build")
 
   // Refs and derived state
   const hasSentFirstMessageRef = useRef(false)
@@ -124,7 +134,7 @@ export function useChatCore({
   )
 
   // Initialize useChat
-  const { messages, status, error, regenerate, stop, setMessages, sendMessage } =
+  const { messages, status, error, regenerate, stop: rawStop, setMessages, sendMessage } =
     useChat<ZolaUIMessage>({
       messages: initialMessages,
       transport,
@@ -146,6 +156,21 @@ export function useChatCore({
       },
       onError: handleError,
     })
+
+  // Stop button: the fetch abort above doesn't reach OpenCode's own server-side
+  // session (see .claude/docs/runtime-coverage.md item 1), so also call its
+  // abort endpoint for OpenCode chats. Best-effort; the fetch abort already
+  // stops the UI regardless of whether this call succeeds.
+  const stop = useCallback(() => {
+    rawStop()
+    if (runtime === "opencode" && chatId) {
+      fetch("/api/cloud9/opencode/abort", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId }),
+      }).catch(() => {})
+    }
+  }, [rawStop, runtime, chatId])
 
   // useChat v5+ reads `messages` only once; the provider loads history
   // (cache, then DB) after mount, so push each load into the chat state.
@@ -258,6 +283,7 @@ export function useChatCore({
             enableSearch,
             incognito,
             agentId,
+            agentMode,
           },
         }
       )
@@ -306,6 +332,7 @@ export function useChatCore({
     setIsSubmitting,
     incognito,
     agentId,
+    agentMode,
   ])
 
   const submitEdit = useCallback(
@@ -418,6 +445,7 @@ export function useChatCore({
               enableSearch,
               incognito,
               agentId,
+              agentMode,
               editCutoffTimestamp: cutoffIso, // Backend will delete messages from this timestamp
             },
           }
@@ -447,6 +475,7 @@ export function useChatCore({
       isSubmitting,
       status,
       agentId,
+      agentMode,
       incognito,
     ]
   )
@@ -501,6 +530,7 @@ export function useChatCore({
               systemPrompt: SYSTEM_PROMPT_DEFAULT,
               incognito,
               agentId,
+              agentMode,
             },
           }
         )
@@ -522,6 +552,7 @@ export function useChatCore({
       setIsSubmitting,
       incognito,
       agentId,
+      agentMode,
     ]
   )
 
@@ -541,6 +572,7 @@ export function useChatCore({
         systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
         incognito,
         agentId,
+        agentMode,
       },
     })
   }, [
@@ -552,6 +584,7 @@ export function useChatCore({
     regenerate,
     incognito,
     agentId,
+    agentMode,
   ])
 
   // Handle input change
@@ -585,6 +618,9 @@ export function useChatCore({
     setHasDialogAuth,
     enableSearch,
     setEnableSearch,
+    runtime,
+    agentMode,
+    setAgentMode,
 
     // Actions
     submit,

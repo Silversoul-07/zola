@@ -14,6 +14,7 @@ export function toChatDTO(chat: typeof schema.chats.$inferSelect) {
     public: chat.public,
     pinned: chat.pinned,
     pinned_at: chat.pinnedAt,
+    agent_id: chat.agentId,
     created_at: chat.createdAt,
     updated_at: chat.updatedAt,
   }

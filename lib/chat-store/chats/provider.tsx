@@ -143,6 +143,7 @@ export function ChatsProvider({
       project_id: null,
       pinned: false,
       pinned_at: null,
+      agent_id: null,
     }
     setChats((prev) => [optimisticChat, ...prev])
 

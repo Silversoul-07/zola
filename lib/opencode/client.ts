@@ -14,6 +14,8 @@ type OpencodeRequestArgs = {
   text: string
   /** LiteLLM lane id from our model picker, or "hermes-agent" for OpenCode's own default. */
   model?: string
+  /** Agent mode picker (build/plan/...), an OpenCode `Agent.name` from GET /agent. */
+  agent?: string
   signal?: AbortSignal
 }
 
@@ -24,6 +26,7 @@ export async function opencodeRequest({
   sessionId,
   text,
   model,
+  agent,
   signal,
 }: OpencodeRequestArgs): Promise<ReadableStream<Uint8Array>> {
   const eventRes = await fetch(`${BASE}/event`, {
@@ -44,6 +47,7 @@ export async function opencodeRequest({
         modelID: model,
       }
     }
+    if (agent) body.agent = agent
     const promptRes = await fetch(
       `${BASE}/session/${encodeURIComponent(sessionId)}/prompt_async`,
       {
@@ -110,5 +114,45 @@ export function opencodeHealth() {
   return fetchJson<{ status: string; version?: string }>(
     `${BASE}/global/health`,
     { headers: { Authorization: authHeader() } }
+  )
+}
+
+// Used by app/api/cloud9/opencode/abort/route.ts: cancels a running session
+// in addition to the client just dropping the fetch (which leaves OpenCode
+// running server-side).
+export function opencodeAbort(sessionId: string) {
+  return fetchJson<boolean>(
+    `${BASE}/session/${encodeURIComponent(sessionId)}/abort`,
+    { method: "POST", headers: { Authorization: authHeader() } }
+  )
+}
+
+export type OpencodeAgent = { name: string; mode: "primary" | "subagent" | "all" }
+
+// Used by app/api/cloud9/opencode/agents/route.ts for the agent mode picker
+// (build/plan/...) next to the model picker.
+export function opencodeAgents() {
+  return fetchJson<OpencodeAgent[]>(`${BASE}/agent`, {
+    headers: { Authorization: authHeader() },
+  })
+}
+
+// Used by app/api/cloud9/opencode/permission/route.ts to answer a
+// `permission.updated` event surfaced as a card in the chat UI.
+export function opencodeReplyPermission(
+  sessionId: string,
+  permissionId: string,
+  response: "once" | "always" | "reject"
+) {
+  return fetchJson<boolean>(
+    `${BASE}/session/${encodeURIComponent(sessionId)}/permissions/${encodeURIComponent(permissionId)}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: authHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ response }),
+    }
   )
 }

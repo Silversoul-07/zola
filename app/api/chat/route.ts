@@ -17,7 +17,7 @@ import {
   type ToolSet,
   type UIMessage,
 } from "ai"
-import { gte, and, eq } from "drizzle-orm"
+import { gte, and, eq, isNull } from "drizzle-orm"
 import {
   incrementMessageCount,
   logUserMessage,
@@ -40,6 +40,8 @@ type ChatRequest = {
   incognito?: boolean
   /** Header AgentPicker selection. Always a real agent id. */
   agentId?: string
+  /** OpenCode agent mode picker (build/plan/...); ignored by other runtimes. */
+  agentMode?: string
 }
 
 function textFromParts(message: UIMessage | undefined): string {
@@ -106,6 +108,7 @@ export async function POST(req: Request) {
       editCutoffTimestamp,
       incognito,
       agentId,
+      agentMode,
     } = (await req.json()) as ChatRequest
 
     if (!messages || !chatId) {
@@ -125,6 +128,16 @@ export async function POST(req: Request) {
 
     if (shouldPersist) {
       await incrementMessageCount({ userId })
+    }
+
+    // Stamp the chat with the agent it was started with (once), so reopening
+    // it later shows the same agent regardless of the header preference at
+    // that time (see .claude/docs/runtime-coverage.md item 4).
+    if (shouldPersist && agentId) {
+      await db
+        .update(schema.chats)
+        .set({ agentId })
+        .where(and(eq(schema.chats.id, chatId), isNull(schema.chats.agentId)))
     }
 
     const userMessage = messages[messages.length - 1]
@@ -201,6 +214,7 @@ export async function POST(req: Request) {
         sessionId,
         text: userText,
         model,
+        agent: agentMode,
       })
 
       const stream = opencodeEventsToUIMessageStream(eventStream, {

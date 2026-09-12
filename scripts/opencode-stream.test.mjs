@@ -62,6 +62,19 @@ const events = [
     },
   },
   {
+    type: "permission.updated",
+    properties: {
+      id: "perm_1",
+      type: "bash",
+      pattern: "rm -rf *",
+      sessionID: SESSION_ID,
+      messageID: "msg_1",
+      callID: "call_2",
+      title: "Run rm -rf *?",
+      metadata: {},
+    },
+  },
+  {
     type: "session.idle",
     properties: { sessionID: SESSION_ID },
   },
@@ -120,6 +133,12 @@ const toolOutputChunk = chunks.find((c) => c.type === "tool-output-available")
 assert.ok(toolOutputChunk, "expected a tool-output-available chunk")
 assert.equal(toolOutputChunk.toolCallId, "call_1")
 assert.deepEqual(toolOutputChunk.output, { output: "file1\nfile2" })
+
+const permissionChunk = chunks.find((c) => c.type === "data-opencode-permission")
+assert.ok(permissionChunk, "expected a data-opencode-permission chunk")
+assert.equal(permissionChunk.id, "perm_1")
+assert.equal(permissionChunk.data.type, "bash")
+assert.equal(permissionChunk.data.title, "Run rm -rf *?")
 
 assert.ok(types.includes("finish"), "expected a finish chunk")
 

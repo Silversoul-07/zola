@@ -10,6 +10,10 @@ import { createUIMessageStream, type UIMessage, type UIMessageStreamWriter } fro
 //   message.part.updated  -> properties.part (Part), part.sessionID scopes it
 //   session.idle          -> properties.sessionID                -> finish
 //   session.error         -> properties.sessionID?, properties.error -> error
+//   permission.updated    -> properties is the Permission itself (id, type,
+//     pattern, sessionID, messageID, callID, title, metadata, time), scoped
+//     by properties.sessionID -> written through as a data-opencode-permission
+//     UI message data part (not text/tool-shaped, so no finish/error here)
 // Part union relevant here:
 //   TextPart      { id, sessionID, type: "text", text }              -> text-delta
 //   ReasoningPart { id, sessionID, type: "reasoning", text }         -> reasoning-delta
@@ -39,6 +43,20 @@ type OpencodePart = {
   callID?: string
   tool?: string
   state?: OpencodeToolState
+}
+
+// Matches OpenCode's `Permission` type (packages/sdk/js/src/gen/types.gen.ts,
+// anomalyco/opencode dev branch): the `permission.updated` event's
+// `properties` IS this object, not a wrapper around it.
+export type OpencodePermission = {
+  id: string
+  type: string
+  pattern?: string | string[]
+  sessionID: string
+  messageID: string
+  callID?: string
+  title: string
+  metadata: Record<string, unknown>
 }
 
 // OpenCode tool names/params, normalised to the Hermes shapes the chat
@@ -229,6 +247,16 @@ async function writeOpencodeEvents(
       case "message.part.updated": {
         const part = event.properties?.part as OpencodePart | undefined
         if (part) handlePart(part)
+        break
+      }
+      case "permission.updated": {
+        const permission = event.properties as OpencodePermission | undefined
+        if (permission?.sessionID !== sessionId) break
+        writer.write({
+          type: "data-opencode-permission",
+          id: permission.id,
+          data: permission,
+        })
         break
       }
       case "session.idle": {

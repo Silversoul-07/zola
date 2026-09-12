@@ -174,6 +174,7 @@ export async function createNewChat(
       project_id: responseData.chat.project_id ?? responseData.chat.projectId ?? null,
       pinned: responseData.chat.pinned ?? false,
       pinned_at: responseData.chat.pinned_at ?? responseData.chat.pinnedAt ?? null,
+      agent_id: responseData.chat.agent_id ?? responseData.chat.agentId ?? null,
     }
 
     await writeToIndexedDB("chats", chat)

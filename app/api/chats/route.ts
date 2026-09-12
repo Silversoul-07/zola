@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
-    const { title, model, projectId } = await request.json()
+    const { title, model, projectId, agentId } = await request.json()
 
     await checkUsageByModel(user.id, model)
 
@@ -52,6 +52,7 @@ export async function POST(request: Request) {
         title: title || "New Chat",
         model,
         projectId: projectId || null,
+        agentId: agentId || null,
       })
       .returning()
 

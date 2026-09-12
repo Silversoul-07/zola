@@ -14,6 +14,7 @@ import { getModelInfo } from "@/lib/models"
 import { ArrowUpIcon, StopIcon } from "@phosphor-icons/react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { PromptSystem } from "../suggestions/prompt-system"
+import { AgentModeSelect } from "./agent-mode-select"
 import { ButtonFileUpload } from "./button-file-upload"
 import { ButtonSearch } from "./button-search"
 import { FileList } from "./file-list"
@@ -37,6 +38,9 @@ type ChatInputProps = {
   setEnableSearch: (enabled: boolean) => void
   enableSearch: boolean
   quotedText?: { text: string; messageId: string } | null
+  showAgentMode?: boolean
+  agentMode?: string
+  onAgentModeChange?: (mode: string) => void
 }
 
 export function ChatInput({
@@ -57,6 +61,9 @@ export function ChatInput({
   setEnableSearch,
   enableSearch,
   quotedText,
+  showAgentMode,
+  agentMode,
+  onAgentModeChange,
 }: ChatInputProps) {
   const selectModelConfig = getModelInfo(selectedModel)
   const hasSearchSupport = Boolean(selectModelConfig?.webSearch)
@@ -201,6 +208,12 @@ export function ChatInput({
                 isUserAuthenticated={isUserAuthenticated}
                 className="rounded-full"
               />
+              {showAgentMode && onAgentModeChange ? (
+                <AgentModeSelect
+                  value={agentMode || "build"}
+                  onChange={onAgentModeChange}
+                />
+              ) : null}
               {hasSearchSupport ? (
                 <ButtonSearch
                   isSelected={enableSearch}

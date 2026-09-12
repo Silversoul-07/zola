@@ -109,6 +109,9 @@ export function Chat() {
     isSubmitting,
     enableSearch,
     setEnableSearch,
+    runtime,
+    agentMode,
+    setAgentMode,
     submit,
     handleSuggestion,
     handleReload,
@@ -131,6 +134,7 @@ export function Chat() {
     clearDraft,
     bumpChat,
     incognito,
+    chatAgentId: currentChat?.agent_id,
   })
 
   // Memoize the conversation props to prevent unnecessary rerenders
@@ -176,6 +180,9 @@ export function Chat() {
       setEnableSearch,
       enableSearch,
       quotedText,
+      showAgentMode: runtime === "opencode",
+      agentMode,
+      onAgentModeChange: setAgentMode,
     }),
     [
       input,
@@ -197,6 +204,9 @@ export function Chat() {
       setEnableSearch,
       enableSearch,
       quotedText,
+      runtime,
+      agentMode,
+      setAgentMode,
     ]
   )
 

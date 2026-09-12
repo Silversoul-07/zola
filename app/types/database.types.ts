@@ -100,6 +100,7 @@ export type Database = {
           public: boolean
           pinned: boolean
           pinned_at: string | null
+          agent_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -112,6 +113,7 @@ export type Database = {
           public?: boolean
           pinned?: boolean
           pinned_at?: string | null
+          agent_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -124,6 +126,7 @@ export type Database = {
           public?: boolean
           pinned?: boolean
           pinned_at?: string | null
+          agent_id?: string | null
         }
         Relationships: [
           {
