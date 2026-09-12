@@ -13,6 +13,7 @@ import {
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useMemo, useState } from "react"
+import { getToolRenderer } from "./tools"
 
 interface ToolInvocationProps {
   toolInvocations: ToolInvocationUIPart[]
@@ -172,7 +173,7 @@ function SingleToolView({
   // If there's only one tool, display it directly
   if (toolsToDisplay.length === 1) {
     return (
-      <SingleToolCard
+      <ToolCard
         toolData={toolsToDisplay[0]}
         defaultOpen={defaultOpen}
         className={className}
@@ -185,7 +186,7 @@ function SingleToolView({
     <div className={className}>
       <div className="space-y-4">
         {toolsToDisplay.map((tool) => (
-          <SingleToolCard
+          <ToolCard
             key={tool.toolInvocation.toolCallId}
             toolData={tool}
             defaultOpen={defaultOpen}
@@ -193,6 +194,29 @@ function SingleToolView({
         ))}
       </div>
     </div>
+  )
+}
+
+// Dispatches to a dedicated per-tool renderer (compact, expandable, no raw
+// JSON) when one exists for this toolName; otherwise falls back to the
+// generic JSON-dump renderer below.
+function ToolCard({
+  toolData,
+  defaultOpen,
+  className,
+}: {
+  toolData: ToolInvocationUIPart
+  defaultOpen?: boolean
+  className?: string
+}) {
+  const Renderer = getToolRenderer(toolData.toolInvocation.toolName)
+  if (Renderer) {
+    return (
+      <Renderer toolData={toolData} defaultOpen={defaultOpen} className={className} />
+    )
+  }
+  return (
+    <SingleToolCard toolData={toolData} defaultOpen={defaultOpen} className={className} />
   )
 }
 
