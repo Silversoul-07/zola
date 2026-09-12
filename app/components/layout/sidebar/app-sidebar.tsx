@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/sidebar"
 import { useChats } from "@/lib/chat-store/chats/provider"
 import { APP_NAME } from "@/lib/config"
+import { useUser } from "@/lib/user-store/provider"
+import { cn } from "@/lib/utils"
 import {
   ChatTeardropText,
   GearSixIcon,
@@ -24,16 +26,18 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useMemo } from "react"
 import { HistoryTrigger } from "../../history/history-trigger"
-import { ButtonNewChat } from "../button-new-chat"
 import { UserMenu } from "../user-menu"
 import { SidebarList } from "./sidebar-list"
 import { SidebarNav } from "./sidebar-nav"
-import { SidebarProject } from "./sidebar-project"
+
+const iconButtonClassName =
+  "text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-full bg-transparent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
 
 export function AppSidebar() {
   const isMobile = useBreakpoint(768)
   const { setOpenMobile, toggleSidebar } = useSidebar()
   const { chats, pinnedChats, isLoading } = useChats()
+  const { user } = useUser()
   const params = useParams<{ chatId: string }>()
   const currentChatId = params.chatId
 
@@ -45,69 +49,54 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      collapsible="offcanvas"
+      collapsible="icon"
       variant="sidebar"
       className="border-border/40 border-r bg-transparent"
     >
       <SidebarHeader className="h-14 pl-3">
         <div className="flex h-full items-center justify-between pr-2">
-          {isMobile ? (
-            <>
-              <span className="text-primary text-base font-medium">
-                {APP_NAME}
-              </span>
+          <span className="text-primary truncate text-base font-semibold group-data-[collapsible=icon]:hidden">
+            {APP_NAME}
+          </span>
+          <div className="flex items-center gap-1">
+            <HistoryTrigger
+              hasSidebar={false}
+              classNameTrigger={cn(
+                iconButtonClassName,
+                "group-data-[collapsible=icon]:hidden"
+              )}
+              icon={<MagnifyingGlass size={18} />}
+              hasPopover={false}
+            />
+            {isMobile ? (
               <button
                 type="button"
                 onClick={() => setOpenMobile(false)}
-                className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-9 items-center justify-center rounded-md bg-transparent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                aria-label="Close sidebar"
+                className={iconButtonClassName}
               >
-                <X size={24} />
+                <X size={20} />
               </button>
-            </>
-          ) : (
-            <>
-              <span className="text-primary text-base font-medium">
-                {APP_NAME}
-              </span>
-              <div className="flex items-center gap-1">
-                <ButtonNewChat />
-                <button
-                  type="button"
-                  onClick={toggleSidebar}
-                  aria-label="Collapse sidebar"
-                  className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-full bg-transparent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-                >
-                  <SidebarSimpleIcon size={20} />
-                </button>
-              </div>
-            </>
-          )}
+            ) : (
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                aria-label="Toggle sidebar"
+                className={iconButtonClassName}
+              >
+                <SidebarSimpleIcon size={20} />
+              </button>
+            )}
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent className="border-border/40 border-t">
         <ScrollArea className="flex h-full px-3 [&>div>div]:!block">
-          <div className="mt-3 mb-5 flex w-full flex-col items-start gap-0">
-            <HistoryTrigger
-              hasSidebar={false}
-              classNameTrigger="bg-transparent hover:bg-accent/80 hover:text-foreground text-primary relative inline-flex w-full items-center rounded-md px-2 py-2 text-sm transition-colors group/search"
-              icon={<MagnifyingGlass size={24} className="mr-2" />}
-              label={
-                <div className="flex w-full items-center gap-2">
-                  <span>Search chats</span>
-                  <div className="text-muted-foreground ml-auto text-xs opacity-0 duration-150 group-hover/search:opacity-100">
-                    ⌘+K
-                  </div>
-                </div>
-              }
-              hasPopover={false}
-            />
-          </div>
           <SidebarNav />
-          <SidebarProject />
           {isLoading ? (
             <div className="h-full" />
           ) : hasChats ? (
-            <div className="space-y-5">
+            <div className="space-y-5 group-data-[collapsible=icon]:hidden">
               {pinnedChats.length > 0 && (
                 <div className="space-y-5">
                   <SidebarList
@@ -129,7 +118,7 @@ export function AppSidebar() {
               ))}
             </div>
           ) : (
-            <div className="flex h-[calc(100vh-160px)] flex-col items-center justify-center">
+            <div className="flex h-[calc(100vh-160px)] flex-col items-center justify-center group-data-[collapsible=icon]:hidden">
               <ChatTeardropText
                 size={24}
                 className="text-muted-foreground mb-1 opacity-40"
@@ -143,14 +132,22 @@ export function AppSidebar() {
         </ScrollArea>
       </SidebarContent>
       <SidebarFooter className="border-border/40 mb-2 flex-row items-center justify-between border-t p-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <UserMenu />
+          <span className="text-primary truncate text-sm font-medium group-data-[collapsible=icon]:hidden">
+            {user?.display_name}
+          </span>
+        </div>
         <Link
           href="/settings"
           aria-label="Settings"
-          className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-9 items-center justify-center rounded-md transition-colors"
+          className={cn(
+            iconButtonClassName,
+            "group-data-[collapsible=icon]:hidden"
+          )}
         >
           <GearSixIcon size={20} />
         </Link>
-        <UserMenu />
       </SidebarFooter>
     </Sidebar>
   )
