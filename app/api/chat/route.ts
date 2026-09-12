@@ -89,12 +89,13 @@ async function persistAssistantMessage({
   userText?: string
 }) {
   if (!shouldPersist) return
-  await storeAssistantMessage({
+  const saved = await storeAssistantMessage({
     chatId,
     messages: [{ role: "assistant", parts: message.parts }],
     message_group_id,
     model,
   })
+  if (!saved) return
   const assistantText = message.parts
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
     .map((p) => p.text)

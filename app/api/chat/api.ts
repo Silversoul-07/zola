@@ -79,10 +79,12 @@ export async function storeAssistantMessage({
   messages,
   message_group_id,
   model,
-}: StoreAssistantMessageParams): Promise<void> {
+}: StoreAssistantMessageParams): Promise<boolean> {
   try {
     await saveFinalAssistantMessage(chatId, messages, message_group_id, model)
+    return true
   } catch (err) {
     console.error("Failed to save assistant messages:", err)
+    return false
   }
 }

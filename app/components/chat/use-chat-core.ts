@@ -100,11 +100,13 @@ export function useChatCore({
   const [agentMode, setAgentMode] = useState("build")
 
   // Per-chat thinking effort picker; persisted across chats/sessions.
-  const [reasoningEffort, setReasoningEffortState] = useState(() =>
-    typeof window !== "undefined"
-      ? (localStorage.getItem("zola:reasoning-effort") ?? "auto")
-      : "auto"
-  )
+  // Starts as "auto" on both server and client, then reads localStorage after
+  // mount: reading it in the initializer made the SSR markup differ (hydration).
+  const [reasoningEffort, setReasoningEffortState] = useState("auto")
+  useEffect(() => {
+    const stored = localStorage.getItem("zola:reasoning-effort")
+    if (stored) setReasoningEffortState(stored)
+  }, [])
   const setReasoningEffort = useCallback((value: string) => {
     setReasoningEffortState(value)
     if (typeof window !== "undefined") {
