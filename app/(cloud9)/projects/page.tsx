@@ -1,5 +1,12 @@
 "use client"
 
+// brainstorm: Projects is disabled for now (owner, 2026-09-12). Intent: a project
+// represents a repo we build and maintain: full repo context for the agent, a
+// file panel on the right, and the agent owning its own logs (Coder-style), not
+// just a chat grouper. Exact shape undecided; improve slowly. Re-enable by
+// removing PROJECTS_DISABLED and restoring the nav entry in sidebar-nav.tsx.
+const PROJECTS_DISABLED = true
+
 import { PageHeader } from "@/app/(cloud9)/_components/page-header"
 import { StatusBlock } from "@/app/(cloud9)/_components/status-block"
 import { DialogCreateProject } from "@/app/components/layout/sidebar/dialog-create-project"
@@ -13,7 +20,7 @@ import { useState } from "react"
 
 type Project = { id: string; name: string; user_id: string; created_at: string }
 
-export default function ProjectsPage() {
+function ProjectsPageEnabled() {
   const queryClient = useQueryClient()
   const { chats } = useChats()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -118,4 +125,15 @@ export default function ProjectsPage() {
       )}
     </div>
   )
+}
+
+export default function ProjectsPage() {
+  if (PROJECTS_DISABLED) {
+    return (
+      <div className="text-muted-foreground p-6 text-sm">
+        Projects is disabled for now. It will return as repo-aware workspaces.
+      </div>
+    )
+  }
+  return <ProjectsPageEnabled />
 }
