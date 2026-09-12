@@ -8,13 +8,24 @@ import {
   Sparkle,
 } from "@phosphor-icons/react/dist/ssr"
 
-export const NON_AUTH_DAILY_MESSAGE_LIMIT = 5
+export const NON_AUTH_DAILY_MESSAGE_LIMIT = 100000
 export const AUTH_DAILY_MESSAGE_LIMIT = 1000
 export const REMAINING_QUERY_ALERT_THRESHOLD = 2
 export const DAILY_FILE_UPLOAD_LIMIT = 5
 export const DAILY_LIMIT_PRO_MODELS = 500
 
-export const NON_AUTH_ALLOWED_MODELS = ["gpt-4.1-nano"]
+// CLOUD9: every model we expose is served by OpenRouter (one key).
+export const OPENROUTER_IDS = [
+  "openrouter:anthropic/claude-sonnet-5",
+  "openrouter:anthropic/claude-opus-5",
+  "openrouter:openai/gpt-5.5",
+  "openrouter:google/gemini-3.8-flash",
+  "openrouter:deepseek/deepseek-v4-pro",
+  "openrouter:deepseek/deepseek-v4-flash",
+  "openrouter:x-ai/grok-4.6",
+  "openrouter:moonshotai/kimi-k2.7-code",
+]
+export const NON_AUTH_ALLOWED_MODELS = OPENROUTER_IDS
 
 export const FREE_MODELS_IDS = [
   "openrouter:deepseek/deepseek-r1:free",
@@ -24,7 +35,7 @@ export const FREE_MODELS_IDS = [
   "gpt-4.1-nano",
 ]
 
-export const MODEL_DEFAULT = "gpt-4.1-nano"
+export const MODEL_DEFAULT = "openrouter:anthropic/claude-sonnet-5"
 
 export const APP_NAME = "Zola"
 export const APP_DOMAIN = "https://zola.chat"
