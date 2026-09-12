@@ -1,36 +1,19 @@
 import { FREE_MODELS_IDS } from "../config"
-import { claudeModels } from "./data/claude"
-import { deepseekModels } from "./data/deepseek"
-import { geminiModels } from "./data/gemini"
-import { grokModels } from "./data/grok"
 import { litellmModels } from "./data/litellm"
-import { mistralModels } from "./data/mistral"
-import { getOllamaModels, ollamaModels } from "./data/ollama"
-import { openaiModels } from "./data/openai"
-import { openrouterModels } from "./data/openrouter"
-import { perplexityModels } from "./data/perplexity"
 import { ModelConfig } from "./types"
 
-// Static models (always available)
-const STATIC_MODELS: ModelConfig[] = [
-  ...litellmModels,
-  ...openaiModels,
-  ...mistralModels,
-  ...deepseekModels,
-  ...claudeModels,
-  ...grokModels,
-  ...perplexityModels,
-  ...geminiModels,
-  ...ollamaModels, // Static fallback Ollama models
-  ...openrouterModels,
-]
+// Static models (always available). CLOUD9: only LiteLLM lanes are
+// registered here; other provider catalogues (claude, deepseek, gemini,
+// grok, mistral, ollama, openai, openrouter, perplexity) stay on disk under
+// ./data but are intentionally not wired in — see lib/config.ts ALLOWED_MODEL_IDS.
+const STATIC_MODELS: ModelConfig[] = [...litellmModels]
 
 // Dynamic models cache
 let dynamicModelsCache: ModelConfig[] | null = null
 let lastFetchTime = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
-// // Function to get all models including dynamically detected ones
+// Function to get all models (LiteLLM lanes only, see STATIC_MODELS above)
 export async function getAllModels(): Promise<ModelConfig[]> {
   const now = Date.now()
 
@@ -39,23 +22,9 @@ export async function getAllModels(): Promise<ModelConfig[]> {
     return dynamicModelsCache
   }
 
-  try {
-    // Get dynamically detected Ollama models (includes enabled check internally)
-    const detectedOllamaModels = await getOllamaModels()
-
-    // Combine static models (excluding static Ollama models) with detected ones
-    const staticModelsWithoutOllama = STATIC_MODELS.filter(
-      (model) => model.providerId !== "ollama"
-    )
-
-    dynamicModelsCache = [...staticModelsWithoutOllama, ...detectedOllamaModels]
-
-    lastFetchTime = now
-    return dynamicModelsCache
-  } catch (error) {
-    console.warn("Failed to load dynamic models, using static models:", error)
-    return STATIC_MODELS
-  }
+  dynamicModelsCache = STATIC_MODELS
+  lastFetchTime = now
+  return dynamicModelsCache
 }
 
 export async function getModelsWithAccessFlags(): Promise<ModelConfig[]> {

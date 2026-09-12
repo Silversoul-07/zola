@@ -5,6 +5,17 @@ import { ModelConfig } from "../types"
 // the models shown in the chat-box picker for "direct" (no agent) chats, plus
 // a virtual "Agent default" entry used only when an agent is selected in the
 // header AgentPicker (see app/api/chat/route.ts).
+const LANE_DESCRIPTIONS: Record<string, string> = {
+  "deepseek-v4-flash": "Default lane: fast, reliable tool use",
+  "deepseek-v4-pro": "Escalation lane: slower, stronger",
+  "gemini-3.5-flash": "Free tier: long context, vision",
+  "gemini-3.5-flash-lite": "Free tier: cheap bulk work",
+  "gemini-2.5-pro": "Free tier: few requests per day",
+  "gpt-oss-120b": "Groq: fastest, small rate limit",
+  "mistral-small-latest": "Free tier: tight rate limits",
+  "nemotron-3.5-lightning": "OpenRouter free pool",
+}
+
 const litellmModels: ModelConfig[] = [
   "deepseek-v4-flash",
   "deepseek-v4-pro",
@@ -21,6 +32,7 @@ const litellmModels: ModelConfig[] = [
   providerId: "litellm",
   baseProviderId: "litellm",
   modelFamily: "LiteLLM",
+  description: LANE_DESCRIPTIONS[id],
   apiSdk: (apiKey?: string) => openproviders(id, undefined, apiKey),
 }))
 
@@ -31,7 +43,7 @@ litellmModels.push({
   providerId: "litellm",
   baseProviderId: "litellm",
   modelFamily: "LiteLLM",
-  description: "Let the selected Hermes agent pick its own default model.",
+  description: "Whatever the agent is configured with",
   apiSdk: () => {
     throw new Error("hermes-agent is handled by the chat route's agent branch")
   },

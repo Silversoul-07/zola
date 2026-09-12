@@ -14,9 +14,9 @@ export const REMAINING_QUERY_ALERT_THRESHOLD = 2
 export const DAILY_FILE_UPLOAD_LIMIT = 5
 export const DAILY_LIMIT_PRO_MODELS = 500
 
-// CLOUD9: chat-box models are LiteLLM lanes (our own gateway, one key), plus
-// the existing OpenRouter ids kept around for direct mode. Hermes agent runs
-// server-side and is selected via the header AgentPicker, not this list.
+// CLOUD9: chat-box models are LiteLLM lanes only (our own gateway, one key).
+// Hermes agent runs server-side and is selected via the header AgentPicker,
+// not this list (see hermes-agent handling in EFFECTIVE_ALLOWED_MODEL_IDS).
 export const ALLOWED_MODEL_IDS = [
   "deepseek-v4-flash",
   "deepseek-v4-pro",
@@ -26,24 +26,10 @@ export const ALLOWED_MODEL_IDS = [
   "gpt-oss-120b",
   "mistral-small-latest",
   "nemotron-3.5-lightning",
-  "openrouter:anthropic/claude-sonnet-5",
-  "openrouter:anthropic/claude-opus-5",
-  "openrouter:openai/gpt-5.5",
-  "openrouter:google/gemini-3.8-flash",
-  "openrouter:deepseek/deepseek-v4-pro",
-  "openrouter:deepseek/deepseek-v4-flash",
-  "openrouter:x-ai/grok-4.6",
-  "openrouter:moonshotai/kimi-k2.7-code",
 ]
 export const NON_AUTH_ALLOWED_MODELS = ALLOWED_MODEL_IDS
 
-export const FREE_MODELS_IDS = [
-  "openrouter:deepseek/deepseek-r1:free",
-  "openrouter:meta-llama/llama-3.3-8b-instruct:free",
-  "pixtral-large-latest",
-  "mistral-large-latest",
-  "gpt-4.1-nano",
-]
+export const FREE_MODELS_IDS = ALLOWED_MODEL_IDS
 
 export const MODEL_DEFAULT = "deepseek-v4-flash"
 

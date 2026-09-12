@@ -113,12 +113,20 @@ export function ModelSelector({
   // Get the hovered model data
   const hoveredModelData = models.find((model) => model.id === hoveredModel)
 
-  const filteredModels = filterAndSortModels(
+  const sortedModels = filterAndSortModels(
     models,
     favoriteModels || [],
     searchQuery,
     isModelHidden
   )
+  // "Agent default" is pinned first regardless of favorite/free sorting.
+  const pinnedModel = sortedModels.find((model) => model.id === "hermes-agent")
+  const filteredModels = pinnedModel
+    ? [
+        pinnedModel,
+        ...sortedModels.filter((model) => model.id !== "hermes-agent"),
+      ]
+    : sortedModels
 
   const trigger = (
     <Button
@@ -201,7 +209,14 @@ export function ModelSelector({
                   </p>
                 </div>
               ) : filteredModels.length > 0 ? (
-                filteredModels.map((model) => renderModelItem(model))
+                filteredModels.map((model, index) => (
+                  <div key={model.id}>
+                    {renderModelItem(model)}
+                    {pinnedModel && index === 0 && (
+                      <div className="border-border my-1 border-t" />
+                    )}
+                  </div>
+                ))
               ) : (
                 <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                   <p className="text-muted-foreground mb-2 text-sm">
@@ -273,40 +288,46 @@ export function ModelSelector({
                   </p>
                 </div>
               ) : filteredModels.length > 0 ? (
-                filteredModels.map((model) => {
+                filteredModels.map((model, index) => {
                   const provider = PROVIDERS.find(
                     (provider) => provider.id === model.icon
                   )
 
                   return (
-                    <DropdownMenuItem
-                      key={model.id}
-                      className={cn(
-                        "flex w-full items-center justify-between px-3 py-2",
-                        selectedModelId === model.id && "bg-accent"
-                      )}
-                      onSelect={() => {
-                        setSelectedModelId(model.id)
-                        setIsDropdownOpen(false)
-                      }}
-                      onFocus={() => {
-                        if (isDropdownOpen) {
-                          setHoveredModel(model.id)
-                        }
-                      }}
-                      onMouseEnter={() => {
-                        if (isDropdownOpen) {
-                          setHoveredModel(model.id)
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        {provider?.icon && <provider.icon className="size-5" />}
-                        <div className="flex flex-col gap-0">
-                          <span className="text-sm">{model.name}</span>
+                    <div key={model.id}>
+                      <DropdownMenuItem
+                        className={cn(
+                          "flex w-full items-center justify-between px-3 py-2",
+                          selectedModelId === model.id && "bg-accent"
+                        )}
+                        onSelect={() => {
+                          setSelectedModelId(model.id)
+                          setIsDropdownOpen(false)
+                        }}
+                        onFocus={() => {
+                          if (isDropdownOpen) {
+                            setHoveredModel(model.id)
+                          }
+                        }}
+                        onMouseEnter={() => {
+                          if (isDropdownOpen) {
+                            setHoveredModel(model.id)
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          {provider?.icon && (
+                            <provider.icon className="size-5" />
+                          )}
+                          <div className="flex flex-col gap-0">
+                            <span className="text-sm">{model.name}</span>
+                          </div>
                         </div>
-                      </div>
-                    </DropdownMenuItem>
+                      </DropdownMenuItem>
+                      {pinnedModel && index === 0 && (
+                        <div className="border-border my-1 border-t" />
+                      )}
+                    </div>
                   )
                 })
               ) : (
