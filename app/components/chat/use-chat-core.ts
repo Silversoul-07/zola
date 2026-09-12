@@ -183,7 +183,10 @@ export function useChatCore({
   useEffect(() => {
     if (status === "streaming" || status === "submitted") return
     const chatChanged = loadedChatIdRef.current !== chatId
-    if (chatChanged || (messages.length === 0 && initialMessages.length > 0)) {
+    // The provider loads the cache first (possibly stale: user turn only when
+    // the user left mid-run) and the DB copy after; take any load that has
+    // more messages than the live state.
+    if (chatChanged || initialMessages.length > messages.length) {
       loadedChatIdRef.current = chatId
       setMessages(initialMessages)
     }
