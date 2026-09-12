@@ -1,12 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { HeaderGoBack } from "../components/header-go-back"
 
 export default function LoginPage() {
-  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
 
@@ -32,8 +30,8 @@ export default function LoginPage() {
         return
       }
 
-      router.push("/")
-      router.refresh()
+      // hard navigation: drops any router-cache entry rendered before the session cookie existed
+      window.location.assign("/")
     } finally {
       setIsPending(false)
     }

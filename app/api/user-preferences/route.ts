@@ -25,7 +25,7 @@ export async function GET() {
 
   if (!preferences) {
     return NextResponse.json({
-      layout: "fullscreen",
+      layout: "sidebar",
       prompt_suggestions: true,
       show_tool_invocations: true,
       show_conversation_previews: true,
