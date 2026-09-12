@@ -108,3 +108,8 @@ jest.config.js
 
 # TypeScript
 *.tsbuildinfo 
+# never bake local env or agent scratch into the image
+.env*
+.claude
+.git
+.playwright-mcp
