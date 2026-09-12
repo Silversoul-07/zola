@@ -1,8 +1,8 @@
 "use client"
 
+import { PageHeader } from "@/app/(cloud9)/_components/page-header"
 import { StatusBlock } from "@/app/(cloud9)/_components/status-block"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { StatusDot } from "@/app/(cloud9)/_components/status-dot"
 import { fetchClient } from "@/lib/fetch"
 import { useQuery } from "@tanstack/react-query"
 
@@ -28,42 +28,36 @@ export default function AgentsPage() {
   })
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Agents</h1>
-      <StatusBlock isLoading={isLoading} error={error?.message} isEmpty={data?.agents.length === 0}>
-        <div className="grid gap-4 sm:grid-cols-2">
+    <div>
+      <PageHeader title="Agents" />
+      <StatusBlock
+        isLoading={isLoading}
+        error={error?.message}
+        isEmpty={data?.agents.length === 0}
+        emptyLabel="No agents configured on the VM yet."
+      >
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
           {data?.agents.map((agent) => (
-            <Card key={agent.id}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>{agent.name}</CardTitle>
-                <Badge variant={agent.health.status === "ok" ? "default" : "destructive"}>
-                  {agent.health.status}
-                </Badge>
-              </CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                <p>
-                  <span className="text-muted-foreground">Model: </span>
-                  {agent.currentModel}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Toolsets: </span>
-                  {agent.toolsetsCount ?? "—"}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Sessions: </span>
-                  {agent.sessionsCount ?? "—"}
-                </p>
-                {agent.health.error && <p className="text-destructive">{agent.health.error}</p>}
-                <a
-                  href={agent.dashboardUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary inline-block pt-1 underline"
-                >
-                  Open dashboard
-                </a>
-              </CardContent>
-            </Card>
+            <div key={agent.id} className="w-full rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">{agent.name}</span>
+                <StatusDot status={agent.health.status === "ok" ? "ok" : "error"} />
+              </div>
+              <div className="text-muted-foreground mt-2 space-y-1 text-[13px]">
+                <p>Model: {agent.currentModel}</p>
+                <p>Toolsets: {agent.toolsetsCount ?? "—"}</p>
+                <p>Sessions: {agent.sessionsCount ?? "—"}</p>
+                {agent.health.error && <p className="text-red-500">{agent.health.error}</p>}
+              </div>
+              <a
+                href={agent.dashboardUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-muted-foreground hover:text-foreground mt-3 inline-block text-[13px] underline underline-offset-2"
+              >
+                Open dashboard
+              </a>
+            </div>
           ))}
         </div>
       </StatusBlock>

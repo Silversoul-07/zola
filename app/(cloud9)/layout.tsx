@@ -9,7 +9,7 @@ export default function Cloud9Layout({ children }: { children: React.ReactNode }
   return (
     <MessagesProvider>
       <LayoutApp>
-        <div className="mx-auto w-full max-w-5xl px-6 py-8">{children}</div>
+        <div className="mx-auto w-full max-w-[960px] px-6 py-8">{children}</div>
       </LayoutApp>
     </MessagesProvider>
   )

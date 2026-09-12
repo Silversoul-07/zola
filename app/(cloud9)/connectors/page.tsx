@@ -1,12 +1,12 @@
 "use client"
 
+import { PageHeader } from "@/app/(cloud9)/_components/page-header"
 import { StatusBlock } from "@/app/(cloud9)/_components/status-block"
-import { Badge } from "@/components/ui/badge"
+import { StatusDot } from "@/app/(cloud9)/_components/status-dot"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { toast } from "@/components/ui/toast"
 import { fetchClient } from "@/lib/fetch"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 
 type McpServer = { name: string; enabled: boolean; transport: string; status?: string }
 type Toolset = { name: string; label: string; description: string; enabled: boolean; tools: string[] }
@@ -17,8 +17,19 @@ type ConnectorsResponse = {
   toolsetsError: string | null
 }
 
+// Toolset labels come back with an emoji prefix (e.g. "🔍 web_search"); the design wants a plain
+// title-cased name instead, built from `name` rather than `label`.
+function titleCase(name: string) {
+  return name
+    .replace(/[-_]+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 export default function ConnectorsPage() {
-  const queryClient = useQueryClient()
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({})
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+
   const { data, isLoading, error } = useQuery<ConnectorsResponse>({
     queryKey: ["cloud9", "connectors"],
     queryFn: async () => {
@@ -38,79 +49,97 @@ export default function ConnectorsPage() {
       if (!res.ok) throw new Error(body.error || "Test failed")
       return body
     },
-    onSuccess: () => {
-      toast({ title: "Connector test passed" })
-      queryClient.invalidateQueries({ queryKey: ["cloud9", "connectors"] })
-    },
-    onError: (err: Error) => toast({ title: "Connector test failed", description: err.message }),
+    onSuccess: (_body, name) => setTestResults((r) => ({ ...r, [name]: { ok: true, message: "ok" } })),
+    onError: (err: Error, name) =>
+      setTestResults((r) => ({ ...r, [name]: { ok: false, message: err.message } })),
   })
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Connectors</h1>
+    <div>
+      <PageHeader title="Connectors" />
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">MCP servers</h2>
+      <section className="mb-8">
+        <h2 className="text-muted-foreground mb-2 text-[13px]">MCP servers</h2>
         <StatusBlock
           isLoading={isLoading}
           error={error?.message || (!data?.mcp.servers ? data?.mcp.error : undefined)}
           isEmpty={data?.mcp.servers?.length === 0}
           emptyLabel={
             data?.mcp.configured === false
-              ? "Connect the dashboard: set HERMES_DASHBOARD_USER / HERMES_DASHBOARD_PASSWORD to see MCP servers."
+              ? "Dashboard login failed. Check HERMES_DASHBOARD_USER / HERMES_DASHBOARD_PASSWORD."
               : "No MCP servers configured."
           }
         >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {data?.mcp.servers?.map((server) => (
-              <Card key={server.name}>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-base">{server.name}</CardTitle>
-                  <Badge variant={server.enabled ? "default" : "secondary"}>
-                    {server.enabled ? "enabled" : "disabled"}
-                  </Badge>
-                </CardHeader>
-                <CardContent className="flex items-center justify-between text-sm">
-                  <div>
-                    <p className="text-muted-foreground">{server.transport}</p>
-                    {server.status && <p className="text-muted-foreground">{server.status}</p>}
+          <div className="divide-y divide-border rounded-xl border border-border">
+            {data?.mcp.servers?.map((server) => {
+              const result = testResults[server.name]
+              return (
+                <div key={server.name} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <StatusDot status={server.enabled ? "ok" : "muted"} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{server.name}</p>
+                      <p className="text-muted-foreground truncate font-mono text-[13px]">
+                        {server.transport}
+                        {server.status ? ` — ${server.status}` : ""}
+                      </p>
+                    </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={testMutation.isPending}
-                    onClick={() => testMutation.mutate(server.name)}
-                  >
-                    Test
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                  <div className="flex shrink-0 items-center gap-3">
+                    {result && (
+                      <span className={result.ok ? "text-sky-500 text-[13px]" : "text-red-500 text-[13px]"}>
+                        {result.ok ? "ok" : result.message}
+                      </span>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={testMutation.isPending}
+                      onClick={() => testMutation.mutate(server.name)}
+                    >
+                      Test
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </StatusBlock>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Toolsets</h2>
+      <section>
+        <h2 className="text-muted-foreground mb-2 text-[13px]">Toolsets</h2>
         <StatusBlock
           isLoading={isLoading}
           error={data?.toolsetsError ?? undefined}
           isEmpty={data?.toolsets.length === 0}
         >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {data?.toolsets.map((toolset) => (
-              <Card key={toolset.name}>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-base">{toolset.label}</CardTitle>
-                  <Badge variant={toolset.enabled ? "default" : "secondary"}>
-                    {toolset.enabled ? "enabled" : "disabled"}
-                  </Badge>
-                </CardHeader>
-                <CardContent className="text-muted-foreground text-sm">
-                  {toolset.description}
-                </CardContent>
-              </Card>
-            ))}
+          <div className="divide-y divide-border rounded-xl border border-border">
+            {data?.toolsets.map((toolset) => {
+              const isOpen = expanded[toolset.name]
+              const shown = isOpen ? toolset.tools : toolset.tools.slice(0, 4)
+              const more = toolset.tools.length - shown.length
+              return (
+                <div key={toolset.name} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{titleCase(toolset.name)}</p>
+                    <p className="text-muted-foreground truncate text-[13px]">
+                      {shown.join(", ")}
+                      {more > 0 && (
+                        <button
+                          type="button"
+                          className="text-foreground ml-1 underline underline-offset-2"
+                          onClick={() => setExpanded((e) => ({ ...e, [toolset.name]: true }))}
+                        >
+                          +{more} more
+                        </button>
+                      )}
+                    </p>
+                  </div>
+                  <StatusDot status={toolset.enabled ? "ok" : "muted"} className="shrink-0" />
+                </div>
+              )
+            })}
           </div>
         </StatusBlock>
       </section>
