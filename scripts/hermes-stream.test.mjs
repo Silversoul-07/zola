@@ -97,4 +97,53 @@ const finishedToolPart = finishedMessage.parts.find(
 assert.ok(finishedToolPart, "expected a tool-terminal part on the reconstructed message")
 assert.equal(finishedToolPart.state, "output-available")
 
+// --- Cancellation: simulates a browser refresh mid-stream. The HTTP
+// consumer cancels the output reader after only the first chunk, but
+// onFinish must still receive the full accumulated text once the upstream
+// SSE finishes draining in the background. ---
+{
+  const sourceStream2 = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(sseText))
+      controller.close()
+    },
+  })
+
+  let finishedMessage2
+  let resolveFinished
+  const finished2 = new Promise((resolve) => {
+    resolveFinished = resolve
+  })
+  const uiStream2 = hermesResponsesToUIMessageStream(sourceStream2, {
+    onFinish: ({ message }) => {
+      finishedMessage2 = message
+      resolveFinished()
+    },
+  })
+
+  const reader2 = uiStream2.getReader()
+  await reader2.read() // consume only the first chunk
+  await reader2.cancel() // simulate the client disconnecting
+
+  await Promise.race([
+    finished2,
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("onFinish did not fire after cancel")),
+        2000
+      )
+    ),
+  ])
+
+  const finishedText2 = finishedMessage2.parts
+    .filter((p) => p.type === "text")
+    .map((p) => p.text)
+    .join("")
+  assert.equal(
+    finishedText2,
+    "Hello",
+    "expected onFinish to receive full text even after the reader was cancelled early"
+  )
+}
+
 console.log("hermes-stream.test.mjs: all assertions passed")

@@ -115,6 +115,16 @@ export const feedback = pgTable("feedback", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })
 
+export const canvases = pgTable("canvases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  chatId: uuid("chat_id")
+    .notNull()
+    .references(() => chats.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default("Untitled"),
+  content: text("content").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
 export const chatAttachments = pgTable("chat_attachments", {
   id: uuid("id").primaryKey().defaultRandom(),
   chatId: uuid("chat_id")

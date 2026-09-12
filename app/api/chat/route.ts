@@ -1,3 +1,4 @@
+import { canvasSystemPromptAddendum } from "@/lib/canvas/prompt"
 import { AGENTS, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import type { Attachment } from "@/lib/file-handling"
 import { hermesRequest } from "@/lib/hermes/client"
@@ -42,6 +43,9 @@ type ChatRequest = {
   agentId?: string
   /** OpenCode agent mode picker (build/plan/...); ignored by other runtimes. */
   agentMode?: string
+  /** Set by the client when a canvas tab is active; triggers the ```canvas protocol addendum below. */
+  canvasId?: string
+  canvasTitle?: string
 }
 
 function textFromParts(message: UIMessage | undefined): string {
@@ -109,6 +113,8 @@ export async function POST(req: Request) {
       incognito,
       agentId,
       agentMode,
+      canvasId,
+      canvasTitle,
     } = (await req.json()) as ChatRequest
 
     if (!messages || !chatId) {
@@ -176,7 +182,11 @@ export async function POST(req: Request) {
       throw new Error(`Model ${model} not found`)
     }
 
-    const effectiveSystemPrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT
+    // Canvas protocol is always on so a first "write me a doc" request can
+    // open a canvas; the title hint is added only while one is open.
+    const effectiveSystemPrompt = `${systemPrompt || SYSTEM_PROMPT_DEFAULT}
+
+${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
 
     const runtime = agentId
       ? AGENTS.find((a) => a.id === agentId)?.runtime ?? "hermes"
@@ -215,6 +225,7 @@ export async function POST(req: Request) {
         text: userText,
         model,
         agent: agentMode,
+        system: canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined),
       })
 
       const stream = opencodeEventsToUIMessageStream(eventStream, {

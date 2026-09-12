@@ -40,45 +40,47 @@ export function Conversation({
       </div>
       <ConversationRoot className="relative w-full">
         <ConversationContent
-          className="flex w-full flex-col items-center pt-20 pb-4"
+          className="flex w-full flex-col pt-20 pb-4"
           style={{
             scrollbarGutter: "stable both-edges",
             scrollbarWidth: "none",
           }}
         >
-          {messages?.map((message, index) => {
-            const isLast =
-              index === messages.length - 1 && status !== "submitted"
-            const hasScrollAnchor =
-              isLast && messages.length > initialMessageCount.current
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4">
+            {messages?.map((message, index) => {
+              const isLast =
+                index === messages.length - 1 && status !== "submitted"
+              const hasScrollAnchor =
+                isLast && messages.length > initialMessageCount.current
 
-            return (
-              <Message
-                key={message.id}
-                id={message.id}
-                variant={message.role}
-                parts={message.parts}
-                isLast={isLast}
-                onDelete={onDelete}
-                onEdit={onEdit}
-                onReload={onReload}
-                hasScrollAnchor={hasScrollAnchor}
-                status={status}
-                onQuote={onQuote}
-                messageGroupId={message.metadata?.message_group_id ?? null}
-                isUserAuthenticated={isUserAuthenticated}
-              />
-            )
-          })}
-          {status === "submitted" &&
-            messages.length > 0 &&
-            messages[messages.length - 1].role === "user" && (
-              <div className="group min-h-scroll-anchor flex w-full max-w-3xl flex-col items-start gap-2 px-6 pb-2">
-                <Loader />
-              </div>
-            )}
+              return (
+                <Message
+                  key={message.id}
+                  id={message.id}
+                  variant={message.role}
+                  parts={message.parts}
+                  isLast={isLast}
+                  onDelete={onDelete}
+                  onEdit={onEdit}
+                  onReload={onReload}
+                  hasScrollAnchor={hasScrollAnchor}
+                  status={status}
+                  onQuote={onQuote}
+                  messageGroupId={message.metadata?.message_group_id ?? null}
+                  isUserAuthenticated={isUserAuthenticated}
+                />
+              )
+            })}
+            {status === "submitted" &&
+              messages.length > 0 &&
+              messages[messages.length - 1].role === "user" && (
+                <div className="group min-h-scroll-anchor flex w-full flex-col items-start gap-2">
+                  <Loader />
+                </div>
+              )}
+          </div>
         </ConversationContent>
-        <div className="absolute bottom-0 flex w-full max-w-3xl flex-1 items-end justify-end gap-4 px-6 pb-2">
+        <div className="absolute bottom-0 mx-auto flex w-full max-w-3xl flex-1 items-end justify-end gap-4 px-4 pb-2">
           <ConversationScrollButton className="absolute top-[-50px] right-[30px] bottom-auto left-auto translate-x-0" />
         </div>
       </ConversationRoot>

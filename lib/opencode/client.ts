@@ -16,6 +16,7 @@ type OpencodeRequestArgs = {
   model?: string
   /** Agent mode picker (build/plan/...), an OpenCode `Agent.name` from GET /agent. */
   agent?: string
+  system?: string
   signal?: AbortSignal
 }
 
@@ -27,6 +28,7 @@ export async function opencodeRequest({
   text,
   model,
   agent,
+  system,
   signal,
 }: OpencodeRequestArgs): Promise<ReadableStream<Uint8Array>> {
   const eventRes = await fetch(`${BASE}/event`, {
@@ -41,6 +43,9 @@ export async function opencodeRequest({
   const timeout = setTimeout(() => promptController.abort(), 15000)
   try {
     const body: Record<string, unknown> = { parts: [{ type: "text", text }] }
+    // OpenCode appends `system` to the agent's own prompt (used for the
+    // canvas protocol; Hermes gets the same text via its system prompt).
+    if (system) body.system = system
     if (model && model !== "hermes-agent") {
       body.model = {
         providerID: process.env.OPENCODE_PROVIDER_ID || "litellm",

@@ -12,10 +12,11 @@ import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
+import { useWorkspace } from "@/app/components/workspace/workspace-provider"
 import { AnimatePresence, motion } from "motion/react"
 import dynamic from "next/dynamic"
 import { redirect } from "next/navigation"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useChatCore } from "./use-chat-core"
 import { useChatOperations } from "./use-chat-operations"
 import { useFileUpload } from "./use-file-upload"
@@ -72,6 +73,16 @@ export function Chat() {
     () => user?.system_prompt || SYSTEM_PROMPT_DEFAULT,
     [user?.system_prompt]
   )
+
+  // Canvas: the active workspace tab (if a canvas), so the agent knows which
+  // document it's editing, and a bridge so the canvas editor's selection
+  // prompt can submit through this chat's normal send path.
+  const { tabs, activePath, registerCanvasInstructionHandler } = useWorkspace()
+  const activeWorkspaceTab = tabs.find((t) => t.path === activePath)
+  const activeCanvas =
+    activeWorkspaceTab?.kind === "canvas"
+      ? { id: activeWorkspaceTab.id, title: activeWorkspaceTab.title }
+      : null
 
   // New state for quoted text
   const [quotedText, setQuotedText] = useState<{
@@ -135,7 +146,12 @@ export function Chat() {
     bumpChat,
     incognito,
     chatAgentId: currentChat?.agent_id,
+    activeCanvas,
   })
+
+  useEffect(() => {
+    registerCanvasInstructionHandler(submit)
+  }, [registerCanvasInstructionHandler, submit])
 
   // Memoize the conversation props to prevent unnecessary rerenders
   const conversationProps = useMemo(

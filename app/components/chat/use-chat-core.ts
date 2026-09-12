@@ -43,6 +43,8 @@ type UseChatCoreProps = {
   incognito?: boolean
   /** This chat's stored agent (chats.agent_id), overrides the header preference for this chat only. */
   chatAgentId?: string | null
+  /** The workspace pane's active canvas tab, if any — tells the agent which document it's editing. */
+  activeCanvas?: { id: string; title: string } | null
 }
 
 function attachmentsToFileParts(attachments?: Attachment[] | null): FileUIPart[] {
@@ -77,6 +79,7 @@ export function useChatCore({
   bumpChat,
   incognito = false,
   chatAgentId,
+  activeCanvas,
 }: UseChatCoreProps) {
   // State management
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -204,8 +207,10 @@ export function useChatCore({
   }
   prevChatIdRef.current = chatId
 
-  // Submit action
-  const submit = useCallback(async () => {
+  // Submit action. `overrideText`, when passed, sends that text instead of the
+  // composer's `input` state — used by the canvas selection prompt so it can
+  // submit through the normal chat pipeline without going through the textbox.
+  const submit = useCallback(async (overrideText?: string) => {
     setIsSubmitting(true)
 
     const uid = await getOrCreateGuestUserId(user)
@@ -214,6 +219,7 @@ export function useChatCore({
       return
     }
 
+    const textToSend = overrideText ?? input
     const optimisticId = `optimistic-${Date.now().toString()}`
     const optimisticAttachments =
       files.length > 0 ? createOptimisticAttachments(files) : []
@@ -222,15 +228,15 @@ export function useChatCore({
       id: optimisticId,
       role: "user",
       parts: [
-        textPart(input),
+        textPart(textToSend),
         ...attachmentsToFileParts(optimisticAttachments),
       ],
       metadata: { createdAt: new Date().toISOString() },
     }
 
     setMessages((prev) => [...prev, optimisticMessage])
-    const submittedInput = input
-    setInput("")
+    const submittedInput = textToSend
+    if (!overrideText) setInput("")
 
     const submittedFiles = [...files]
     setFiles([])
@@ -294,6 +300,9 @@ export function useChatCore({
             incognito,
             agentId,
             agentMode,
+            ...(activeCanvas
+              ? { canvasId: activeCanvas.id, canvasTitle: activeCanvas.title }
+              : {}),
           },
         }
       )
@@ -343,6 +352,7 @@ export function useChatCore({
     incognito,
     agentId,
     agentMode,
+    activeCanvas,
   ])
 
   const submitEdit = useCallback(

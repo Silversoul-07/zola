@@ -1,8 +1,10 @@
 "use client"
 
+import { CanvasTab } from "@/app/components/chat/canvas-tab"
 import { CodeBlockCode } from "@/components/prompt-kit/code-block"
+import { useChatSession } from "@/lib/chat-store/session/provider"
 import { cn } from "@/lib/utils"
-import { MagnifyingGlass, X } from "@phosphor-icons/react"
+import { FilePlus, MagnifyingGlass, X } from "@phosphor-icons/react"
 import { useEffect, useRef, useState } from "react"
 import { useWorkspace } from "./workspace-provider"
 
@@ -42,20 +44,41 @@ const MIN_WIDTH = 320
 const DEFAULT_WIDTH_PCT = 0.4
 
 export function WorkspacePane() {
-  const { isOpen, tabs, activePath, openFile, close, setActivePath, closeTab } = useWorkspace()
+  const { isOpen, tabs, activePath, openFile, openCanvas, close, setActivePath, closeTab } =
+    useWorkspace()
   const [width, setWidth] = useState<number | null>(null)
   const [files, setFiles] = useState<Record<string, FileState>>({})
   const [query, setQuery] = useState("")
   const [matches, setMatches] = useState<string[]>([])
+  const [creatingCanvas, setCreatingCanvas] = useState(false)
   const paneRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const { chatId } = useChatSession()
 
   const activeTab = tabs.find((t) => t.path === activePath) ?? null
-  const activeFile = activePath ? files[activePath] : undefined
+  const activeFile =
+    activePath && activeTab?.kind === "file" ? files[activePath] : undefined
+
+  const createCanvas = async () => {
+    if (!chatId || creatingCanvas) return
+    setCreatingCanvas(true)
+    try {
+      const res = await fetch("/api/cloud9/canvas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId, title: "Untitled", content: "" }),
+      })
+      if (!res.ok) return
+      const canvas = await res.json()
+      openCanvas(canvas.id, canvas.title, canvas.content ?? "")
+    } finally {
+      setCreatingCanvas(false)
+    }
+  }
 
   // Fetch content once per opened path; cached in `files` so tab switches don't refetch.
   useEffect(() => {
-    if (!activePath || files[activePath]) return
+    if (!activePath || activeTab?.kind !== "file" || files[activePath]) return
     setFiles((prev) => ({ ...prev, [activePath]: { status: "loading" } }))
     fetch(`/api/cloud9/file?path=${encodeURIComponent(activePath)}`)
       .then(async (res) => {
@@ -77,13 +100,14 @@ export function WorkspacePane() {
   }, [activePath])
 
   // Scroll to the requested line once shiki has rendered the `.line` spans (bounded poll).
+  const targetLine = activeTab?.kind === "file" ? activeTab.line : undefined
   useEffect(() => {
-    if (!activeTab?.line || activeFile?.status !== "ready") return
+    if (!targetLine || activeFile?.status !== "ready") return
     let cancelled = false
     let attempts = 0
     const tryScroll = () => {
       if (cancelled) return
-      const target = bodyRef.current?.querySelectorAll(".line")[activeTab.line! - 1]
+      const target = bodyRef.current?.querySelectorAll(".line")[targetLine - 1]
       if (target) {
         target.scrollIntoView({ block: "center" })
         return
@@ -94,7 +118,7 @@ export function WorkspacePane() {
     return () => {
       cancelled = true
     }
-  }, [activeTab?.path, activeTab?.line, activeFile?.status])
+  }, [activeTab?.path, targetLine, activeFile?.status])
 
   // Quick open: debounced search against /api/cloud9/files?q=
   useEffect(() => {
@@ -161,6 +185,14 @@ export function WorkspacePane() {
             className="border-border bg-background w-full rounded-md border py-1 pr-2 pl-7 text-sm focus:outline-none"
           />
         </div>
+        <button
+          onClick={createCanvas}
+          disabled={!chatId || creatingCanvas}
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-start text-xs disabled:opacity-50"
+        >
+          <FilePlus size={13} />
+          New canvas
+        </button>
         {matches.length > 0 && (
           <ul className="border-border max-h-40 overflow-y-auto rounded-md border text-xs">
             {matches.map((m) => (
@@ -192,7 +224,9 @@ export function WorkspacePane() {
                 t.path === activePath ? "bg-muted" : "hover:bg-muted/50"
               )}
             >
-              <span className="max-w-32 truncate font-mono">{fileName(t.path)}</span>
+              <span className="max-w-32 truncate font-mono">
+                {t.kind === "canvas" ? t.title : fileName(t.path)}
+              </span>
               <X
                 size={12}
                 className="text-muted-foreground hover:text-foreground"
@@ -206,7 +240,7 @@ export function WorkspacePane() {
         </div>
       )}
 
-      {activePath && (
+      {activePath && activeTab?.kind === "file" && (
         <div className="border-border flex shrink-0 items-center justify-between gap-2 border-b px-2 py-1.5">
           <button
             title="Copy path"
@@ -221,32 +255,43 @@ export function WorkspacePane() {
         </div>
       )}
 
-      <div ref={bodyRef} className="workspace-code flex-1 overflow-auto text-[13px]">
-        <style>{`
-          .workspace-code code { counter-reset: line; }
-          .workspace-code .line { counter-increment: line; }
-          .workspace-code .line::before {
-            content: counter(line);
-            display: inline-block;
-            width: 2.5rem;
-            margin-right: 0.75rem;
-            text-align: right;
-            color: var(--muted-foreground);
-            user-select: none;
-          }
-        `}</style>
-        {!activePath ? (
-          <div className="text-muted-foreground p-4 text-xs">No file open</div>
-        ) : !activeFile || activeFile.status === "loading" ? (
-          <div className="text-muted-foreground p-4 text-xs">Reading file…</div>
-        ) : activeFile.status === "error" ? (
-          <div className="text-muted-foreground p-4 text-xs">
-            Could not read {activePath}: {activeFile.error}
-          </div>
-        ) : (
-          <CodeBlockCode code={activeFile.content} language={languageFromPath(activePath)} />
-        )}
-      </div>
+      {activeTab?.kind === "canvas" ? (
+        <CanvasTab
+          key={activeTab.id}
+          canvasId={activeTab.id}
+          title={activeTab.title}
+          content={activeTab.content}
+          contentVersion={activeTab.rev}
+          onClose={() => closeTab(activeTab.path)}
+        />
+      ) : (
+        <div ref={bodyRef} className="workspace-code flex-1 overflow-auto text-[13px]">
+          <style>{`
+            .workspace-code code { counter-reset: line; }
+            .workspace-code .line { counter-increment: line; }
+            .workspace-code .line::before {
+              content: counter(line);
+              display: inline-block;
+              width: 2.5rem;
+              margin-right: 0.75rem;
+              text-align: right;
+              color: var(--muted-foreground);
+              user-select: none;
+            }
+          `}</style>
+          {!activePath ? (
+            <div className="text-muted-foreground p-4 text-xs">No file open</div>
+          ) : !activeFile || activeFile.status === "loading" ? (
+            <div className="text-muted-foreground p-4 text-xs">Reading file…</div>
+          ) : activeFile.status === "error" ? (
+            <div className="text-muted-foreground p-4 text-xs">
+              Could not read {activePath}: {activeFile.error}
+            </div>
+          ) : (
+            <CodeBlockCode code={activeFile.content} language={languageFromPath(activePath)} />
+          )}
+        </div>
+      )}
     </div>
   )
 }

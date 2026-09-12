@@ -158,7 +158,15 @@ export function hermesResponsesToUIMessageStream(
   sse: ReadableStream<Uint8Array>,
   opts: HermesStreamOpts = {}
 ) {
-  return createUIMessageStream({
+  // Two nested UI message streams, not one: the inner one is read to
+  // completion right here (never by the HTTP response consumer), so its
+  // onFinish always fires from a normal `flush` once the SSE fully drains -
+  // never from `cancel`, whose accumulated text would be truncated at
+  // whatever point the browser disconnected. The outer stream just relays
+  // chunks to the real client and keeps forwarding (into a writer that
+  // silently no-ops once cancelled) even after that client goes away, so
+  // the inner read loop is never starved.
+  const inner = createUIMessageStream({
     execute: async ({ writer }) => {
       await writeHermesResponses(sse, writer)
     },
@@ -167,6 +175,24 @@ export function hermesResponsesToUIMessageStream(
         await opts.onFinish?.({ message: responseMessage })
       } catch (err) {
         console.error("hermes onFinish persistence failed:", err)
+      }
+    },
+  })
+
+  return createUIMessageStream({
+    execute: async ({ writer }) => {
+      const reader = inner.getReader()
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          writer.write(value)
+        }
+      } catch (err) {
+        writer.write({
+          type: "error",
+          errorText: err instanceof Error ? err.message : String(err),
+        })
       }
     },
   })

@@ -3,12 +3,6 @@
 import { SettingsTrigger } from "@/app/components/layout/settings/settings-trigger"
 import { useBreakpoint } from "@/app/hooks/use-breakpoint"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Sidebar,
@@ -24,16 +18,12 @@ import {
 } from "@/components/ui/sidebar"
 import { useChats } from "@/lib/chat-store/chats/provider"
 import { APP_NAME } from "@/lib/config"
-import { fetchClient } from "@/lib/fetch"
 import { useUser } from "@/lib/user-store/provider"
-import { cn } from "@/lib/utils"
 import {
-  CaretDownIcon,
   ChatTeardropText,
   DotsThreeIcon,
   GearSixIcon,
   SidebarSimpleIcon,
-  SignOut,
   X,
 } from "@phosphor-icons/react"
 import { useParams } from "next/navigation"
@@ -46,11 +36,6 @@ const iconButtonClassName =
   "text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-full bg-transparent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
 
 const RECENT_CHATS_LIMIT = 12
-
-async function signOut() {
-  await fetchClient("/api/auth/logout", { method: "POST" })
-  window.location.assign("/auth")
-}
 
 export function AppSidebar() {
   const isMobile = useBreakpoint(768)
@@ -70,33 +55,15 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      collapsible="icon"
+      collapsible="offcanvas"
       variant="sidebar"
       className="border-border/40 border-r bg-transparent"
     >
       <SidebarHeader className="h-14 pl-3">
         <div className="flex h-full items-center justify-between pr-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="text-primary hover:bg-muted flex min-w-0 items-center gap-1 rounded-md p-1 text-sm font-semibold transition-colors group-data-[collapsible=icon]:hidden"
-              >
-                <span className="truncate">{APP_NAME}</span>
-                <CaretDownIcon
-                  size={14}
-                  className="text-muted-foreground shrink-0"
-                />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-40">
-              <SettingsTrigger />
-              <DropdownMenuItem onClick={signOut}>
-                <SignOut className="size-4" />
-                <span>Sign out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <span className="text-primary min-w-0 truncate p-1 text-sm font-semibold">
+            {APP_NAME}
+          </span>
           {isMobile ? (
             <button
               type="button"
@@ -124,7 +91,7 @@ export function AppSidebar() {
           {isLoading ? (
             <div className="h-full" />
           ) : hasChats ? (
-            <div className="space-y-3 group-data-[collapsible=icon]:hidden">
+            <div className="space-y-3">
               {pinnedChats.length > 0 && (
                 <SidebarGroup className="p-0">
                   <SidebarGroupLabel>Pinned</SidebarGroupLabel>
@@ -168,7 +135,7 @@ export function AppSidebar() {
               </SidebarGroup>
             </div>
           ) : (
-            <div className="flex h-[calc(100vh-160px)] flex-col items-center justify-center group-data-[collapsible=icon]:hidden">
+            <div className="flex h-[calc(100vh-160px)] flex-col items-center justify-center">
               <ChatTeardropText
                 size={24}
                 className="text-muted-foreground mb-1 opacity-40"
@@ -192,7 +159,7 @@ export function AppSidebar() {
                 <AvatarImage src={user?.profile_image ?? undefined} />
                 <AvatarFallback>{user?.display_name?.charAt(0)}</AvatarFallback>
               </Avatar>
-              <span className="text-foreground truncate text-sm font-medium group-data-[collapsible=icon]:hidden">
+              <span className="text-foreground truncate text-sm font-medium">
                 {user?.display_name}
               </span>
             </button>
@@ -203,10 +170,7 @@ export function AppSidebar() {
             <button
               type="button"
               aria-label="Settings"
-              className={cn(
-                iconButtonClassName,
-                "group-data-[collapsible=icon]:hidden"
-              )}
+              className={iconButtonClassName}
             >
               <GearSixIcon size={20} />
             </button>

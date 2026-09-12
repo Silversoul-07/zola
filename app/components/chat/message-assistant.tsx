@@ -10,12 +10,16 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning"
+import { useWorkspace } from "@/app/components/workspace/workspace-provider"
+import { useChatSession } from "@/lib/chat-store/session/provider"
 import { textFromMessage } from "@/lib/chat-store/messages/api"
+import { parseCanvasSegments } from "@/lib/canvas/parse"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { cn } from "@/lib/utils"
 import { getToolName, isToolUIPart, type UIMessage } from "ai"
-import { ArrowClockwise, Check, Copy } from "@phosphor-icons/react"
+import { ArrowClockwise, Check, Copy, FileText } from "@phosphor-icons/react"
 import { useCallback, useRef } from "react"
+import { CanvasBlock } from "./canvas-block"
 import { getSources } from "./get-sources"
 import { Loader } from "./loader"
 import { type OpencodePermissionData, PermissionCard } from "./permission-card"
@@ -64,6 +68,20 @@ export function MessageAssistant({
   )
   const contentNullOrEmpty = children === null || children === ""
   const isLastStreaming = status === "streaming" && isLast
+  const segments = contentNullOrEmpty ? [] : parseCanvasSegments(children)
+  const { chatId } = useChatSession()
+  const { openCanvas } = useWorkspace()
+  const handleOpenInCanvas = useCallback(async () => {
+    if (!chatId || contentNullOrEmpty) return
+    const res = await fetch("/api/cloud9/canvas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId, title: "Untitled", content: children }),
+    })
+    if (!res.ok) return
+    const canvas = await res.json()
+    openCanvas(canvas.id, canvas.title, canvas.content)
+  }, [chatId, contentNullOrEmpty, children, openCanvas])
   const searchImageResults =
     toolInvocationParts
       .filter(
@@ -137,15 +155,26 @@ export function MessageAssistant({
           <SearchImages results={searchImageResults as never[]} />
         )}
 
-        {contentNullOrEmpty ? null : (
-          <MessageContent
-            className={cn(
-              "prose dark:prose-invert relative min-w-full bg-transparent p-0",
-              "prose-h1:scroll-m-20 prose-h1:text-2xl prose-h1:font-semibold prose-h2:mt-8 prose-h2:scroll-m-20 prose-h2:text-xl prose-h2:mb-3 prose-h2:font-medium prose-h3:scroll-m-20 prose-h3:text-base prose-h3:font-medium prose-h4:scroll-m-20 prose-h5:scroll-m-20 prose-h6:scroll-m-20 prose-strong:font-medium prose-table:block prose-table:overflow-y-auto"
-            )}
-          >
-            <MessageResponse>{children}</MessageResponse>
-          </MessageContent>
+        {segments.map((segment, i) =>
+          segment.kind === "canvas" ? (
+            <CanvasBlock
+              key={i}
+              title={segment.title}
+              content={segment.content}
+              complete={segment.complete}
+              streaming={Boolean(isLastStreaming)}
+            />
+          ) : segment.text.trim() ? (
+            <MessageContent
+              key={i}
+              className={cn(
+                "prose dark:prose-invert relative min-w-full bg-transparent p-0",
+                "prose-h1:scroll-m-20 prose-h1:text-2xl prose-h1:font-semibold prose-h2:mt-8 prose-h2:scroll-m-20 prose-h2:text-xl prose-h2:mb-3 prose-h2:font-medium prose-h3:scroll-m-20 prose-h3:text-base prose-h3:font-medium prose-h4:scroll-m-20 prose-h5:scroll-m-20 prose-h6:scroll-m-20 prose-strong:font-medium prose-table:block prose-table:overflow-y-auto"
+              )}
+            >
+              <MessageResponse>{segment.text}</MessageResponse>
+            </MessageContent>
+          ) : null
         )}
 
         {sources && sources.length > 0 && <SourcesList sources={sources} />}
@@ -163,6 +192,14 @@ export function MessageAssistant({
               onClick={copyToClipboard}
             >
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+            </MessageAction>
+            <MessageAction
+              tooltip="Open in canvas"
+              label="Open in canvas"
+              className="hover:bg-accent/60 text-muted-foreground hover:text-foreground rounded-full bg-transparent"
+              onClick={handleOpenInCanvas}
+            >
+              <FileText className="size-4" />
             </MessageAction>
             {isLast ? (
               <MessageAction
