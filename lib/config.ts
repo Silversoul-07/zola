@@ -14,8 +14,10 @@ export const REMAINING_QUERY_ALERT_THRESHOLD = 2
 export const DAILY_FILE_UPLOAD_LIMIT = 5
 export const DAILY_LIMIT_PRO_MODELS = 500
 
-// CLOUD9: every model we expose is served by OpenRouter (one key).
-export const OPENROUTER_IDS = [
+// CLOUD9: every model we expose is served by OpenRouter (one key), plus the
+// Hermes agent (server-side key, tools run on our VM).
+export const ALLOWED_MODEL_IDS = [
+  "hermes:hermes-agent",
   "openrouter:anthropic/claude-sonnet-5",
   "openrouter:anthropic/claude-opus-5",
   "openrouter:openai/gpt-5.5",
@@ -25,7 +27,7 @@ export const OPENROUTER_IDS = [
   "openrouter:x-ai/grok-4.6",
   "openrouter:moonshotai/kimi-k2.7-code",
 ]
-export const NON_AUTH_ALLOWED_MODELS = OPENROUTER_IDS
+export const NON_AUTH_ALLOWED_MODELS = ALLOWED_MODEL_IDS
 
 export const FREE_MODELS_IDS = [
   "openrouter:deepseek/deepseek-r1:free",
@@ -33,9 +35,11 @@ export const FREE_MODELS_IDS = [
   "pixtral-large-latest",
   "mistral-large-latest",
   "gpt-4.1-nano",
+  // Hermes always uses our server-side HERMES_API_KEY, never a per-user key.
+  "hermes:hermes-agent",
 ]
 
-export const MODEL_DEFAULT = "openrouter:anthropic/claude-sonnet-5"
+export const MODEL_DEFAULT = "hermes:hermes-agent"
 
 export const APP_NAME = "Zola"
 export const APP_DOMAIN = "https://zola.chat"

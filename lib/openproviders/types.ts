@@ -136,6 +136,7 @@ export type Provider =
   | "xai"
   | "ollama"
   | "openrouter"
+  | "hermes"
 
 export type SupportedModel =
   | OpenAIModel

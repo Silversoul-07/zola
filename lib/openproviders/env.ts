@@ -6,6 +6,8 @@ export const env = {
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
   XAI_API_KEY: process.env.XAI_API_KEY!,
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY!,
+  HERMES_API_URL: process.env.HERMES_API_URL || "https://agent.kryos.dev",
+  HERMES_API_KEY: process.env.HERMES_API_KEY!,
 }
 
 export function createEnvWithUserKeys(
@@ -20,5 +22,7 @@ export function createEnvWithUserKeys(
     ANTHROPIC_API_KEY: userKeys.anthropic || env.ANTHROPIC_API_KEY,
     XAI_API_KEY: userKeys.xai || env.XAI_API_KEY,
     OPENROUTER_API_KEY: userKeys.openrouter || env.OPENROUTER_API_KEY,
+    HERMES_API_URL: env.HERMES_API_URL,
+    HERMES_API_KEY: userKeys.hermes || env.HERMES_API_KEY,
   }
 }

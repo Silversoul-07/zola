@@ -155,6 +155,10 @@ export function getProviderForModel(model: SupportedModel): Provider {
     return "openrouter"
   }
 
+  if (model.startsWith("hermes:")) {
+    return "hermes"
+  }
+
   // First check the static mapping
   const provider = MODEL_PROVIDER_MAP[model]
   if (provider) return provider
