@@ -1,6 +1,7 @@
 "use client"
 
 import { Image as ImageIcon } from "@phosphor-icons/react"
+import { getToolLabel } from "./tool-labels"
 import { parseToolResult, ToolShell, type ToolBodyProps } from "./tool-shell"
 
 function findImageUrl(result: unknown): string | undefined {
@@ -29,7 +30,8 @@ export function MediaTool({ toolData, defaultOpen, className }: ToolBodyProps) {
   return (
     <ToolShell
       icon={<ImageIcon />}
-      title={toolName}
+      label={getToolLabel(toolName, isRunning)}
+      summary={caption}
       running={isRunning}
       defaultOpen={defaultOpen}
       className={className}

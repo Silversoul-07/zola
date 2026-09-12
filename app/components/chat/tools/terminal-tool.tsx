@@ -1,6 +1,7 @@
 "use client"
 
 import { Terminal } from "@phosphor-icons/react"
+import { getToolLabel } from "./tool-labels"
 import {
   CodeOutput,
   ExitCodeBadge,
@@ -32,8 +33,10 @@ export function TerminalTool({ toolData, defaultOpen, className }: ToolBodyProps
   return (
     <ToolShell
       icon={<Terminal />}
-      title={command || toolName}
+      label={getToolLabel(toolName, isRunning)}
+      summary={command}
       running={isRunning}
+      error={hasError}
       defaultOpen={defaultOpen}
       className={className}
       badge={
@@ -41,11 +44,21 @@ export function TerminalTool({ toolData, defaultOpen, className }: ToolBodyProps
       }
     >
       {result ? (
-        hasError ? (
-          <CodeOutput code={String(result.error)} className="[&_pre]:!text-red-500" />
-        ) : (
-          <CodeOutput code={result.output ?? ""} />
-        )
+        <div className="space-y-2">
+          {command && (
+            <pre className="text-muted-foreground m-0 whitespace-pre-wrap break-all font-mono text-xs">
+              <span aria-hidden className="select-none">
+                $
+              </span>{" "}
+              {command}
+            </pre>
+          )}
+          {hasError ? (
+            <CodeOutput code={String(result.error)} className="[&_pre]:!text-red-500" />
+          ) : (
+            <CodeOutput code={result.output ?? ""} />
+          )}
+        </div>
       ) : (
         <div className="text-muted-foreground text-xs">Waiting for output…</div>
       )}

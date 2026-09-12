@@ -1,6 +1,7 @@
 "use client"
 
 import { Wrench } from "@phosphor-icons/react"
+import { getToolLabel } from "./tool-labels"
 import { parseToolResult, ToolShell, type ToolBodyProps } from "./tool-shell"
 
 function firstMeaningfulArg(args: Record<string, unknown> | undefined) {
@@ -23,7 +24,8 @@ export function SummaryTool({ toolData, defaultOpen, className }: ToolBodyProps)
   return (
     <ToolShell
       icon={<Wrench />}
-      title={summaryArg ? `${toolName}: ${summaryArg}` : toolName}
+      label={getToolLabel(toolName, isRunning)}
+      summary={summaryArg}
       running={isRunning}
       defaultOpen={defaultOpen}
       className={className}

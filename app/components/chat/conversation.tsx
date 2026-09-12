@@ -2,11 +2,11 @@ import {
   ChatContainerContent,
   ChatContainerRoot,
 } from "@/components/prompt-kit/chat-container"
-import { Loader } from "@/components/prompt-kit/loader"
 import { ScrollButton } from "@/components/prompt-kit/scroll-button"
 import { ExtendedMessageAISDK } from "@/lib/chat-store/messages/api"
 import { Message as MessageType } from "@ai-sdk/react"
 import { useRef } from "react"
+import { Loader } from "./loader"
 import { Message } from "./message"
 
 type ConversationProps = {

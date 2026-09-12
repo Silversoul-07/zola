@@ -5,9 +5,10 @@ import {
   CodeBlockCode,
 } from "@/components/prompt-kit/code-block"
 import { cn } from "@/lib/utils"
-import { CaretDown, Spinner } from "@phosphor-icons/react"
+import { CaretDown, Spinner, Warning } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "framer-motion"
 import { type ReactNode, useState } from "react"
+import { Shimmer } from "./shimmer"
 
 const TRANSITION = {
   type: "spring",
@@ -15,22 +16,28 @@ const TRANSITION = {
   bounce: 0,
 } as const
 
-// Common shell every per-tool renderer uses: rounded border, muted bg,
-// 13px text, clickable header to expand/collapse, subtle left accent
-// while running.
+// Compact single-line transcript row every per-tool renderer uses: icon +
+// label + summary + status, expanding on click. Borderless by default so
+// consecutive rows stack tightly (see tool-invocation.tsx); the expanded
+// body gets its own bordered panel. Adopted from Coder's TranscriptRow /
+// ToolCall primitives.
 export function ToolShell({
   icon,
-  title,
+  label,
+  summary,
   badge,
   running,
+  error,
   defaultOpen = false,
   className,
   children,
 }: {
   icon: ReactNode
-  title: ReactNode
+  label: string
+  summary?: ReactNode
   badge?: ReactNode
   running?: boolean
+  error?: boolean
   defaultOpen?: boolean
   className?: string
   children?: ReactNode
@@ -39,13 +46,7 @@ export function ToolShell({
   const hasBody = children !== undefined && children !== null
 
   return (
-    <div
-      className={cn(
-        "border-border bg-muted/40 flex flex-col gap-0 overflow-hidden rounded-md border text-[13px]",
-        running && "border-l-2 border-l-blue-500",
-        className
-      )}
-    >
+    <div className={cn("flex flex-col text-[13px]", className)}>
       <button
         type="button"
         onClick={(e) => {
@@ -53,22 +54,34 @@ export function ToolShell({
           if (hasBody) setIsExpanded((v) => !v)
         }}
         className={cn(
-          "flex w-full min-w-0 flex-row items-center gap-2 px-3 py-2 text-left transition-colors",
-          hasBody && "hover:bg-accent"
+          "text-muted-foreground flex min-h-6 w-full min-w-0 items-center gap-2 rounded text-left transition-colors",
+          hasBody && "hover:text-foreground cursor-pointer"
         )}
       >
-        <span className="text-muted-foreground shrink-0 [&_svg]:size-4">
-          {icon}
-        </span>
-        <span className="min-w-0 flex-1 truncate font-mono">{title}</span>
+        <span className="shrink-0 [&_svg]:size-4">{icon}</span>
+        {running ? (
+          <Shimmer className="shrink-0 truncate text-sky-500">{label}</Shimmer>
+        ) : (
+          <span className={cn("shrink-0 truncate", error && "text-red-500")}>
+            {label}
+          </span>
+        )}
+        {summary && (
+          <span className="text-muted-foreground/70 min-w-0 flex-1 truncate font-mono text-xs">
+            {summary}
+          </span>
+        )}
         {running && (
-          <Spinner className="size-3.5 shrink-0 animate-spin text-blue-500" />
+          <Spinner className="size-3.5 shrink-0 animate-spin text-sky-500" />
+        )}
+        {error && !running && (
+          <Warning className="size-3.5 shrink-0 text-red-500" />
         )}
         {badge}
         {hasBody && (
           <CaretDown
             className={cn(
-              "size-3.5 shrink-0 transition-transform",
+              "size-3 shrink-0 transition-transform",
               isExpanded && "rotate-180"
             )}
           />
@@ -84,7 +97,9 @@ export function ToolShell({
             transition={TRANSITION}
             className="overflow-hidden"
           >
-            <div className="border-border border-t px-3 py-2">{children}</div>
+            <div className="border-border bg-muted/40 mb-1 ml-6 rounded-md border px-3 py-2">
+              {children}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
