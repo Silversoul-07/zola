@@ -16,6 +16,11 @@ const LANE_DESCRIPTIONS: Record<string, string> = {
   "nemotron-3.5-lightning": "OpenRouter free pool",
 }
 
+// Fallback only. /api/models overwrites this from LiteLLM's own
+// supports_vision, which knows the upstream model; this list just keeps the
+// attach button sane when LiteLLM is unreachable (the laptop).
+const VISION_LANES = new Set(["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-pro"])
+
 const litellmModels: ModelConfig[] = [
   "deepseek-v4-flash",
   "deepseek-v4-pro",
@@ -33,6 +38,10 @@ const litellmModels: ModelConfig[] = [
   baseProviderId: "litellm",
   modelFamily: "LiteLLM",
   description: LANE_DESCRIPTIONS[id],
+  // The attachment button is gated on this (button-file-upload.tsx), so a lane
+  // that omits it cannot accept images at all -- which silently disabled
+  // uploads on every lane we run, including the vision lane itself.
+  vision: VISION_LANES.has(id),
   apiSdk: (apiKey?: string) => openproviders(id, undefined, apiKey),
 }))
 
@@ -44,6 +53,9 @@ litellmModels.push({
   baseProviderId: "litellm",
   modelFamily: "LiteLLM",
   description: "Whatever the agent is configured with",
+  // Hermes picks the lane per turn and has a vision tool, so let images through
+  // and let the agent route them.
+  vision: true,
   apiSdk: () => {
     throw new Error("hermes-agent is handled by the chat route's agent branch")
   },

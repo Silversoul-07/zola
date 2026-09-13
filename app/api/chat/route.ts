@@ -1,6 +1,7 @@
 import { canvasSystemPromptAddendum } from "@/lib/canvas/prompt"
 import { maybeGenerateTitle } from "@/lib/title"
 import { AGENTS, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
+import { readBlob } from "@/lib/blobs"
 import type { Attachment } from "@/lib/file-handling"
 import { hermesRequest } from "@/lib/hermes/client"
 import { hermesResponsesToUIMessageStream } from "@/lib/hermes/stream"
@@ -57,6 +58,35 @@ function textFromParts(message: UIMessage | undefined): string {
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
     .map((p) => p.text)
     .join("")
+}
+
+// Hermes and LiteLLM fetch attachment urls themselves and cannot reach one
+// that lives behind our auth cookie, so bytes are inlined as a data: url right
+// before sending — the persisted row keeps the short /api/files/<id> url, so
+// this only affects the outgoing wire payload. (The OpenCode branch sends text
+// only and drops attachments entirely; that is a pre-existing gap.)
+async function inlineBlobAttachments(
+  messages: UIMessage[]
+): Promise<UIMessage[]> {
+  return Promise.all(
+    messages.map(async (message) => {
+      const parts = await Promise.all(
+        message.parts.map(async (part) => {
+          if (part.type !== "file" || !part.url.startsWith("/api/files/")) {
+            return part
+          }
+          const id = part.url.slice("/api/files/".length)
+          const blob = await readBlob(id)
+          if (!blob) return part
+          return {
+            ...part,
+            url: `data:${blob.contentType};base64,${blob.bytes.toString("base64")}`,
+          }
+        })
+      )
+      return { ...message, parts }
+    })
+  )
 }
 
 function attachmentsFromParts(message: UIMessage | undefined): Attachment[] {
@@ -219,6 +249,9 @@ export async function POST(req: Request) {
 
 ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
 
+    // Applied once, upstream of every provider branch below.
+    const outgoingMessages = await inlineBlobAttachments(messages)
+
     const runtime = agentId
       ? AGENTS.find((a) => a.id === agentId)?.runtime ?? "hermes"
       : undefined
@@ -283,7 +316,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
     // agent's own default", any other model id is a LiteLLM lane it also honours.
     if (agentId) {
       const hermesRes = await hermesRequest({
-        messages,
+        messages: outgoingMessages,
         model,
         chatId,
         systemPrompt: effectiveSystemPrompt,
@@ -320,7 +353,7 @@ ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
         const result = streamText({
           model: apiSdk(apiKey, { enableSearch }),
           system: effectiveSystemPrompt,
-          messages: await convertToModelMessages(messages),
+          messages: await convertToModelMessages(outgoingMessages),
           tools: {} as ToolSet,
           onError: (err: unknown) => {
             console.error("Streaming error occurred:", err)

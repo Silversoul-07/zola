@@ -24,6 +24,9 @@ async function enrich(models: ModelConfig[]): Promise<ModelConfig[]> {
     return {
       ...m,
       contextWindow: m.contextWindow ?? lane.contextWindow,
+      // LiteLLM wins over our static guess: it reads the upstream model's real
+      // capability, and the attach button is gated on this flag.
+      vision: lane.vision ?? m.vision,
       inputCost: m.inputCost ?? lane.inputCost,
       outputCost: m.outputCost ?? lane.outputCost,
       description:

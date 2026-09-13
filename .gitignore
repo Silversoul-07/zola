@@ -55,3 +55,6 @@ bun.lock
 
 # local dev
 .dev.log
+
+# Claude scratch files (temp; .claude/docs keepers stay tracked)
+.claude/scratch/

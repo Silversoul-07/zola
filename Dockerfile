@@ -69,6 +69,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Drizzle migrations, applied on boot by instrumentation.ts
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 
+# Attachment blobs live on a mounted volume. Create the directory here so an
+# empty named volume inherits nextjs ownership when Docker seeds it from the
+# image; a bare mount would land root-owned and the app runs as uid 1001.
+RUN mkdir -p /data/blobs && chown -R nextjs:nodejs /data
+
 # Switch to non-root user
 USER nextjs
 

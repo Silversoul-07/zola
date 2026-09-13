@@ -3,7 +3,7 @@ import * as fileType from "file-type"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
-const ALLOWED_FILE_TYPES = [
+export const ALLOWED_FILE_TYPES = [
   "image/jpeg",
   "image/png",
   "image/gif",
@@ -55,14 +55,12 @@ export function createAttachment(file: File, url: string): Attachment {
   }
 }
 
-// ponytail: no blob storage backend wired up for the self-hosted deployment
-// (no S3/equivalent in scope). Attachments live only as object URLs for the
-// current browser session, same as the app's pre-existing "no persistence
-// configured" fallback path. Add a storage backend + POST to
-// /api/chats/[id]/attachments if cross-session file history is needed.
+// ponytail: blobs are saved to a single local disk volume (lib/blobs.ts), not
+// object storage. Fine for a single-VM deployment; swap for S3/MinIO if this
+// ever needs to scale beyond one machine.
 export async function processFiles(
   files: File[],
-  _chatId: string,
+  chatId: string,
   _userId: string
 ): Promise<Attachment[]> {
   const attachments: Attachment[] = []
@@ -79,11 +77,30 @@ export async function processFiles(
       continue
     }
 
-    // ponytail: inline data URL so the model backend (Hermes) can read it without
-    // object storage. Ceiling: attachments live inside the message row; add a
-    // /api/files store when uploads outgrow a few MB.
-    const url = await fileToDataUrl(file)
-    attachments.push(createAttachment(file, url))
+    // Upload the bytes to disk and keep only the short /api/files/<id> url on
+    // the message; the chat route inlines it back to a data url server-side
+    // right before sending to a model provider.
+    const form = new FormData()
+    form.append("file", file)
+    form.append("chatId", chatId)
+
+    try {
+      const res = await fetch("/api/files", {
+        method: "POST",
+        body: form,
+        credentials: "same-origin",
+      })
+      if (!res.ok) throw new Error(`Upload failed with status ${res.status}`)
+      const { url } = (await res.json()) as { url: string }
+      attachments.push(createAttachment(file, url))
+    } catch (err) {
+      console.warn(`File ${file.name} upload failed:`, err)
+      toast({
+        title: "File upload failed",
+        description: `Could not upload ${file.name}`,
+        status: "error",
+      })
+    }
   }
 
   return attachments
@@ -99,13 +116,4 @@ export class FileUploadLimitError extends Error {
 
 export async function checkFileUploadLimit(_userId: string) {
   return 0
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
 }
