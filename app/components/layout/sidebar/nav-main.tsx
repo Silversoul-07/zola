@@ -8,6 +8,7 @@ import {
 import {
   ChatsCircleIcon,
   ClockCounterClockwiseIcon,
+  FolderIcon,
   MagnifyingGlass,
   NotePencilIcon,
   PlugsConnectedIcon,
@@ -17,6 +18,7 @@ import { usePathname } from "next/navigation"
 import { HistoryTrigger } from "../../history/history-trigger"
 
 const NAV_ITEMS = [
+  { href: "/projects", label: "Projects", icon: FolderIcon },
   { href: "/skills", label: "Skills", icon: ChatsCircleIcon },
   { href: "/connectors", label: "Connectors", icon: PlugsConnectedIcon },
   { href: "/scheduled", label: "Scheduled", icon: ClockCounterClockwiseIcon },

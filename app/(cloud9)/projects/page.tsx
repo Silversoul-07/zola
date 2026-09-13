@@ -1,11 +1,10 @@
 "use client"
 
-// brainstorm: Projects is disabled for now (owner, 2026-09-12). Intent: a project
-// represents a repo we build and maintain: full repo context for the agent, a
-// file panel on the right, and the agent owning its own logs (Coder-style), not
-// just a chat grouper. Exact shape undecided; improve slowly. Re-enable by
-// removing PROJECTS_DISABLED and restoring the nav entry in sidebar-nav.tsx.
-const PROJECTS_DISABLED = true
+// Projects is back on (owner, 2026-09-13) as what it already is: a chat grouper
+// with a shared system prompt. The larger intent recorded on 2026-09-12 -- a
+// project is a repo we build and maintain, with full repo context for the agent,
+// a file panel, and the agent owning its own logs -- is still ahead of this, and
+// this page is where it grows.
 
 import { PageHeader } from "@/app/(cloud9)/_components/page-header"
 import { StatusBlock } from "@/app/(cloud9)/_components/status-block"
@@ -128,12 +127,5 @@ function ProjectsPageEnabled() {
 }
 
 export default function ProjectsPage() {
-  if (PROJECTS_DISABLED) {
-    return (
-      <div className="text-muted-foreground p-6 text-sm">
-        Projects is disabled for now. It will return as repo-aware workspaces.
-      </div>
-    )
-  }
   return <ProjectsPageEnabled />
 }
