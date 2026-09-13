@@ -89,8 +89,10 @@ export function useChatCore({
   const [input, setInput] = useState(draftValue)
 
   // Header AgentPicker selection (mirrors the default in agent-picker.tsx).
-  // A chat that was started with a given agent keeps that agent when
-  // reopened, regardless of what the header preference has moved on to.
+  // chatAgentId wins whenever a chat already exists: the picker now PATCHes
+  // the chat's row the moment it is switched, so this stays the live agent
+  // for the chat, not just the one it started with; only a brand-new chat
+  // (no row yet) falls back to the header preference.
   const { preferences } = useUserPreferences()
   const agentId = chatAgentId || getEffectiveAgentId(preferences.selectedAgentId)
   const runtime = AGENTS.find((a) => a.id === agentId)?.runtime

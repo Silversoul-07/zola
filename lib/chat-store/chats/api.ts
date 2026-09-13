@@ -116,6 +116,35 @@ export async function updateChatModel(chatId: string, model: string) {
   }
 }
 
+export async function updateChatAgent(chatId: string, agentId: string) {
+  try {
+    const res = await fetchClient(`${API_ROUTE_CHATS}/${chatId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId }),
+    })
+    const responseData = await res.json()
+
+    if (!res.ok) {
+      throw new Error(
+        responseData.error ||
+          `Failed to update chat agent: ${res.status} ${res.statusText}`
+      )
+    }
+
+    const all = await getCachedChats()
+    const updated = (all as Chats[]).map((c) =>
+      c.id === chatId ? { ...c, agent_id: agentId } : c
+    )
+    await writeToIndexedDB("chats", updated)
+
+    return responseData
+  } catch (error) {
+    console.error("Error updating chat agent:", error)
+    throw error
+  }
+}
+
 export async function toggleChatPin(chatId: string, pinned: boolean) {
   try {
     const res = await fetchClient(`${API_ROUTE_CHATS}/${chatId}`, {

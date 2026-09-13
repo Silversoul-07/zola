@@ -17,11 +17,11 @@ const triggerClassName =
 
 export function AgentPicker() {
   const { preferences, setSelectedAgentId } = useUserPreferences()
-  // A chat started with a given agent keeps showing that agent here,
-  // regardless of what the header preference has moved on to since
-  // (see .claude/docs/runtime-coverage.md item 4).
+  // The picker is the live control: picking an agent inside an open chat
+  // switches that chat (persisted below via updateChatAgent), so the chat's
+  // own agent_id is what is actually in effect once one exists.
   const { chatId } = useChatSession()
-  const { getChatById } = useChats()
+  const { getChatById, updateChatAgent } = useChats()
   const chatAgentId = chatId ? getChatById(chatId)?.agent_id : undefined
 
   if (AGENTS.length === 0) return null
@@ -29,6 +29,16 @@ export function AgentPicker() {
   const selectedAgent =
     AGENTS.find((agent) => agent.id === (chatAgentId || preferences.selectedAgentId)) ||
     AGENTS[0]
+
+  const handleSelect = (agentId: string) => {
+    // Always update the default used for new chats.
+    setSelectedAgentId(agentId)
+    // If a chat is open, also switch that chat itself from the next message
+    // onward, and make the choice stick when the chat is reopened.
+    if (chatId) {
+      updateChatAgent(chatId, agentId)
+    }
+  }
 
   // Only one runtime configured: show a non-interactive label instead of a
   // dropdown with nothing to pick.
@@ -55,7 +65,7 @@ export function AgentPicker() {
           <DropdownMenuItem
             key={agent.id}
             className="flex items-center justify-between"
-            onSelect={() => setSelectedAgentId(agent.id)}
+            onSelect={() => handleSelect(agent.id)}
           >
             <span className="truncate">{agent.name}</span>
             {agent.id === selectedAgent.id && (

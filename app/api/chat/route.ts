@@ -20,7 +20,7 @@ import {
   type ToolSet,
   type UIMessage,
 } from "ai"
-import { gte, and, eq, isNull } from "drizzle-orm"
+import { gte, and, eq } from "drizzle-orm"
 import {
   incrementMessageCount,
   logUserMessage,
@@ -210,14 +210,16 @@ export async function POST(req: Request) {
       await incrementMessageCount({ userId })
     }
 
-    // Stamp the chat with the agent it was started with (once), so reopening
-    // it later shows the same agent regardless of the header preference at
-    // that time (see .claude/docs/runtime-coverage.md item 4).
+    // Record the agent actually used for this turn on the chat, so reopening
+    // it later keeps using it. This used to only fire once (WHERE agentId IS
+    // NULL), which locked a chat to whatever agent sent its first message
+    // with no way to switch later; the picker is now the live control, so
+    // every turn re-stamps the chat with the agent that is actually running.
     if (shouldPersist && agentId) {
       await db
         .update(schema.chats)
         .set({ agentId })
-        .where(and(eq(schema.chats.id, chatId), isNull(schema.chats.agentId)))
+        .where(eq(schema.chats.id, chatId))
     }
 
     const userMessage = messages[messages.length - 1]

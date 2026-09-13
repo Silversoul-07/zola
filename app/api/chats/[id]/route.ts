@@ -37,6 +37,9 @@ export async function PATCH(
   if (typeof body.title === "string") updates.title = body.title
   if (typeof body.model === "string") updates.model = body.model
   if (typeof body.public === "boolean") updates.public = body.public
+  if (typeof body.agentId === "string" || body.agentId === null) {
+    updates.agentId = body.agentId
+  }
   if (typeof body.pinned === "boolean") {
     updates.pinned = body.pinned
     updates.pinnedAt = body.pinned ? new Date() : null

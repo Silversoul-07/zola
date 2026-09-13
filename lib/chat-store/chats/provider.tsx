@@ -9,6 +9,7 @@ import {
   deleteChat as deleteChatFromDb,
   fetchAndCacheChats,
   getCachedChats,
+  updateChatAgent as updateChatAgentFromDb,
   updateChatModel as updateChatModelFromDb,
   updateChatTitle,
 } from "./api"
@@ -35,6 +36,7 @@ interface ChatsContextType {
   resetChats: () => Promise<void>
   getChatById: (id: string) => Chats | undefined
   updateChatModel: (id: string, model: string) => Promise<void>
+  updateChatAgent: (id: string, agentId: string) => Promise<void>
   bumpChat: (id: string) => Promise<void>
   togglePinned: (id: string, pinned: boolean) => Promise<void>
   pinnedChats: Chats[]
@@ -188,6 +190,19 @@ export function ChatsProvider({
     }
   }
 
+  const updateChatAgent = async (id: string, agentId: string) => {
+    const prev = [...chats]
+    setChats((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, agent_id: agentId } : c))
+    )
+    try {
+      await updateChatAgentFromDb(id, agentId)
+    } catch {
+      setChats(prev)
+      toast({ title: "Failed to update agent", status: "error" })
+    }
+  }
+
   const bumpChat = async (id: string) => {
     setChats((prev) => {
       const updatedChatWithNewUpdatedAt = prev.map((c) =>
@@ -252,6 +267,7 @@ export function ChatsProvider({
         resetChats,
         getChatById,
         updateChatModel,
+        updateChatAgent,
         bumpChat,
         isLoading,
         togglePinned,
