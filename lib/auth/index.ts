@@ -1,7 +1,6 @@
 import { timingSafeEqual } from "crypto"
 import { cookies } from "next/headers"
 import { db, schema } from "@/lib/db"
-import { MODEL_DEFAULT } from "@/lib/config"
 import { SESSION_COOKIE, createSessionToken, verifySessionToken } from "./session"
 
 export const AUTH_USERNAME = process.env.AUTH_USERNAME || "admin"
@@ -38,7 +37,10 @@ export async function getOrCreateUser() {
       username: AUTH_USERNAME,
       email: `${AUTH_USERNAME}@local`,
       displayName: AUTH_USERNAME,
-      favoriteModels: [MODEL_DEFAULT],
+      // Empty, not the default lane: the picker treats a non-empty favourites
+      // list as a whitelist and hides everything else, so seeding it with the
+      // default lane left the operator staring at a one-model picker.
+      favoriteModels: [],
     })
     .returning()
   return created
