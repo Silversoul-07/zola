@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
+import { randomUUID } from "node:crypto"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
@@ -47,35 +47,4 @@ export async function readBlob(
   } catch {
     return null
   }
-}
-
-// Signed read links. A model provider cannot send our auth cookie, so the
-// bytes have to be reachable without it -- but a plain public path would make
-// every attachment permanently world-readable to anyone who ever saw the URL.
-// An HMAC over id+expiry keeps the exposure to one short window per send.
-const SIGNING_KEY = process.env.AUTH_SECRET || process.env.CSRF_SECRET || ""
-const DEFAULT_TTL_SECONDS = 30 * 60
-
-function signature(id: string, exp: number): string {
-  return createHmac("sha256", SIGNING_KEY).update(`${id}.${exp}`).digest("base64url")
-}
-
-/** `/api/files/<id>?exp=…&sig=…`, readable without a session until it expires. */
-export function signBlobPath(id: string, ttlSeconds = DEFAULT_TTL_SECONDS): string {
-  const exp = Math.floor(Date.now() / 1000) + ttlSeconds
-  return `/api/files/${id}?exp=${exp}&sig=${signature(id, exp)}`
-}
-
-export function verifyBlobSignature(
-  id: string,
-  exp: string | null,
-  sig: string | null
-): boolean {
-  if (!SIGNING_KEY || !exp || !sig) return false
-  const expiry = Number(exp)
-  if (!Number.isFinite(expiry) || expiry < Math.floor(Date.now() / 1000)) return false
-  const want = Buffer.from(signature(id, expiry))
-  const got = Buffer.from(sig)
-  // Length check first: timingSafeEqual throws on a mismatch.
-  return want.length === got.length && timingSafeEqual(want, got)
 }

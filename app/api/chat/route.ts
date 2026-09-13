@@ -1,7 +1,7 @@
 import { canvasSystemPromptAddendum } from "@/lib/canvas/prompt"
 import { maybeGenerateTitle } from "@/lib/title"
 import { AGENTS, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
-import { readBlob, signBlobPath } from "@/lib/blobs"
+import { readBlob } from "@/lib/blobs"
 import type { Attachment } from "@/lib/file-handling"
 import { hermesRequest } from "@/lib/hermes/client"
 import { hermesResponsesToUIMessageStream } from "@/lib/hermes/stream"
@@ -63,8 +63,8 @@ function textFromParts(message: UIMessage | undefined): string {
 // Attachments are persisted as a short /api/files/<id> reference. Providers
 // fetch image urls themselves and cannot send our auth cookie, so each one is
 // rewritten before the request goes out:
-//   - public deployment: an absolute, short-lived signed link (verified
-//     2026-09-13 that LiteLLM/Gemini fetches a remote https image fine)
+//   - public deployment: an absolute url (verified 2026-09-13 that
+//     LiteLLM/Gemini fetches a remote https image fine)
 //   - localhost: a data: url, because nothing outside can reach the laptop
 // The persisted row is untouched either way. OpenCode is excluded on purpose:
 // its docs state http(s) attachment urls are not supported, and that branch
@@ -88,7 +88,7 @@ async function resolveBlobAttachments(
             return part
           }
           const id = part.url.slice("/api/files/".length)
-          if (origin) return { ...part, url: `${origin}${signBlobPath(id)}` }
+          if (origin) return { ...part, url: `${origin}/api/files/${id}` }
           const blob = await readBlob(id)
           if (!blob) return part
           return {
