@@ -4,8 +4,12 @@ export type LaneInfo = {
   /** USD per 1M tokens */
   inputCost?: number
   outputCost?: number
-  /** LiteLLM knows which upstream models take image input; we should not guess. */
+  /** LiteLLM knows what the upstream model can do; we should not guess. */
   vision?: boolean
+  tools?: boolean
+  reasoning?: boolean
+  webSearch?: boolean
+  audio?: boolean
 }
 
 // The model the Hermes agent actually runs when Zola sends "hermes-agent"
@@ -37,6 +41,10 @@ export async function getLaneInfo(): Promise<Map<string, LaneInfo>> {
             input_cost_per_token?: number
             output_cost_per_token?: number
             supports_vision?: boolean
+            supports_function_calling?: boolean
+            supports_reasoning?: boolean
+            supports_web_search?: boolean
+            supports_audio_input?: boolean
           }
         }>
       }
@@ -48,6 +56,10 @@ export async function getLaneInfo(): Promise<Map<string, LaneInfo>> {
           inputCost: m.input_cost_per_token ? m.input_cost_per_token * 1_000_000 : undefined,
           outputCost: m.output_cost_per_token ? m.output_cost_per_token * 1_000_000 : undefined,
           vision: m.supports_vision,
+          tools: m.supports_function_calling,
+          reasoning: m.supports_reasoning,
+          webSearch: m.supports_web_search,
+          audio: m.supports_audio_input,
         })
       }
     }

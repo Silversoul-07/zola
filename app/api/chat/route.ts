@@ -1,7 +1,7 @@
 import { canvasSystemPromptAddendum } from "@/lib/canvas/prompt"
 import { maybeGenerateTitle } from "@/lib/title"
 import { AGENTS, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
-import { readBlob } from "@/lib/blobs"
+import { readBlob, signBlobPath } from "@/lib/blobs"
 import type { Attachment } from "@/lib/file-handling"
 import { hermesRequest } from "@/lib/hermes/client"
 import { hermesResponsesToUIMessageStream } from "@/lib/hermes/stream"
@@ -60,13 +60,25 @@ function textFromParts(message: UIMessage | undefined): string {
     .join("")
 }
 
-// Hermes and LiteLLM fetch attachment urls themselves and cannot reach one
-// that lives behind our auth cookie, so bytes are inlined as a data: url right
-// before sending — the persisted row keeps the short /api/files/<id> url, so
-// this only affects the outgoing wire payload. (The OpenCode branch sends text
-// only and drops attachments entirely; that is a pre-existing gap.)
-async function inlineBlobAttachments(
-  messages: UIMessage[]
+// Attachments are persisted as a short /api/files/<id> reference. Providers
+// fetch image urls themselves and cannot send our auth cookie, so each one is
+// rewritten before the request goes out:
+//   - public deployment: an absolute, short-lived signed link (verified
+//     2026-09-13 that LiteLLM/Gemini fetches a remote https image fine)
+//   - localhost: a data: url, because nothing outside can reach the laptop
+// The persisted row is untouched either way. OpenCode is excluded on purpose:
+// its docs state http(s) attachment urls are not supported, and that branch
+// sends text only today.
+function publicOrigin(req: Request): string | null {
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host")
+  if (!host || /^(localhost|127\.0\.0\.1|\[::1\])(:|$)/.test(host)) return null
+  const proto = req.headers.get("x-forwarded-proto") || "https"
+  return `${proto}://${host}`
+}
+
+async function resolveBlobAttachments(
+  messages: UIMessage[],
+  origin: string | null
 ): Promise<UIMessage[]> {
   return Promise.all(
     messages.map(async (message) => {
@@ -76,6 +88,7 @@ async function inlineBlobAttachments(
             return part
           }
           const id = part.url.slice("/api/files/".length)
+          if (origin) return { ...part, url: `${origin}${signBlobPath(id)}` }
           const blob = await readBlob(id)
           if (!blob) return part
           return {
@@ -250,7 +263,7 @@ export async function POST(req: Request) {
 ${canvasSystemPromptAddendum(canvasId ? canvasTitle : undefined)}`
 
     // Applied once, upstream of every provider branch below.
-    const outgoingMessages = await inlineBlobAttachments(messages)
+    const outgoingMessages = await resolveBlobAttachments(messages, publicOrigin(req))
 
     const runtime = agentId
       ? AGENTS.find((a) => a.id === agentId)?.runtime ?? "hermes"

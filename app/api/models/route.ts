@@ -24,9 +24,15 @@ async function enrich(models: ModelConfig[]): Promise<ModelConfig[]> {
     return {
       ...m,
       contextWindow: m.contextWindow ?? lane.contextWindow,
-      // LiteLLM wins over our static guess: it reads the upstream model's real
-      // capability, and the attach button is gated on this flag.
-      vision: lane.vision ?? m.vision,
+      // LiteLLM fills the hover card's capability badges from the upstream
+      // model. `vision` is the exception: its supports_vision is wrong for our
+      // deepseek lanes in both directions (probed 2026-09-13), and the attach
+      // button depends on it, so the probed list in litellm.ts wins there.
+      vision: m.vision ?? lane.vision,
+      tools: lane.tools ?? m.tools,
+      reasoning: lane.reasoning ?? m.reasoning,
+      webSearch: lane.webSearch ?? m.webSearch,
+      audio: lane.audio ?? m.audio,
       inputCost: m.inputCost ?? lane.inputCost,
       outputCost: m.outputCost ?? lane.outputCost,
       description:

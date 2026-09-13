@@ -16,10 +16,22 @@ const LANE_DESCRIPTIONS: Record<string, string> = {
   "nemotron-3.5-lightning": "OpenRouter free pool",
 }
 
-// Fallback only. /api/models overwrites this from LiteLLM's own
-// supports_vision, which knows the upstream model; this list just keeps the
-// attach button sane when LiteLLM is unreachable (the laptop).
-const VISION_LANES = new Set(["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-pro"])
+// Which lanes really accept an image, probed against the live proxy on
+// 2026-09-13 by sending one image URL per lane and checking which model
+// actually served the reply. LiteLLM's own `supports_vision` was wrong in
+// BOTH directions here -- it claims deepseek-v4-flash takes images (it fails
+// over to gemini instead) and claims deepseek-v4-pro does not (it served the
+// image fine). So this list wins over /model/info for vision; the other
+// capability badges still come from LiteLLM.
+// Untested, assumed from the vendor: gemini-2.5-pro (daily quota exhausted
+// during the probe) and mistral-small-latest (rate-limited during the probe).
+const VISION_LANES = new Set([
+  "deepseek-v4-pro",
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-2.5-pro",
+  "mistral-small-latest",
+])
 
 const litellmModels: ModelConfig[] = [
   "deepseek-v4-flash",
