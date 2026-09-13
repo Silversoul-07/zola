@@ -24,7 +24,7 @@ export const ALLOWED_MODEL_IDS = [
   "gemini-3.5-flash-lite",
   "gemini-2.5-pro",
   "gpt-oss-120b",
-  "mistral-small-latest",
+  "mistral-small-2603",
   "nemotron-3.5-lightning",
 ]
 export const NON_AUTH_ALLOWED_MODELS = ALLOWED_MODEL_IDS

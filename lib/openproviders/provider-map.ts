@@ -123,10 +123,9 @@ const MODEL_PROVIDER_MAP: Record<string, Provider> = {
   "llama3.2:latest": "ollama",
   "qwen2.5-coder:latest": "ollama",
 
-  // LiteLLM lanes (our gateway). Note: "mistral-small-latest" also exists as a
-  // direct Mistral entry above; this overrides it so that id resolves to the
-  // LiteLLM gateway instead, since the chat-box picker only ever shows the
-  // LiteLLM catalogue entry for that id.
+  // LiteLLM lanes (our gateway). The Mistral lane names the dated build,
+  // mistral-small-2603, not the -latest alias: an alias silently moves onto a
+  // different model, and a lane has to say which model it is.
   "hermes-agent": "litellm", // virtual "Agent default": only ever routed via Hermes
   "deepseek-v4-flash": "litellm",
   "deepseek-v4-pro": "litellm",
@@ -134,7 +133,7 @@ const MODEL_PROVIDER_MAP: Record<string, Provider> = {
   "gemini-3.5-flash-lite": "litellm",
   "gemini-2.5-pro": "litellm",
   "gpt-oss-120b": "litellm",
-  "mistral-small-latest": "litellm",
+  "mistral-small-2603": "litellm",
   "nemotron-3.5-lightning": "litellm",
 }
 

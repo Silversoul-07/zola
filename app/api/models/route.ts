@@ -6,34 +6,43 @@ import {
 } from "@/lib/models"
 import { getCurrentUser } from "@/lib/auth"
 import { getLaneInfo, HERMES_DEFAULT_MODEL } from "@/lib/models/litellm-info"
+import { getCatalog } from "@/lib/models/openrouter-catalog"
 import type { ModelConfig } from "@/lib/models/types"
 import { db, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 
-// LiteLLM lanes are static entries; fill context window and pricing from
-// LiteLLM's /model/info so the picker's detail panel shows real numbers.
-// "hermes-agent" borrows the agent's default lane.
+// LiteLLM lanes are static entries with nothing but a name and a description,
+// so the picker's detail panel is filled from two catalogues:
+//
+//   OpenRouter  what the model can do and how much context it has. Public,
+//               needs no key, and is right where LiteLLM's built-in map is
+//               wrong -- it correctly lists both deepseek lanes as text-only.
+//   LiteLLM     what a call costs us, which depends on our own provider
+//               accounts and free tiers, not on OpenRouter's rates.
+//
+// Either one being unreachable degrades the panel rather than breaking it.
+// "hermes-agent" borrows whichever lane the agent runs by default.
 async function enrich(models: ModelConfig[]): Promise<ModelConfig[]> {
-  const info = await getLaneInfo()
-  if (!info.size) return models
+  const [info, catalog] = await Promise.all([getLaneInfo(), getCatalog()])
+  if (!info.size && !catalog.size) return models
   return models.map((m) => {
     if (m.providerId !== "litellm") return m
-    const lane = info.get(m.id === "hermes-agent" ? HERMES_DEFAULT_MODEL : m.id)
-    if (!lane) return m
+    const id = m.id === "hermes-agent" ? HERMES_DEFAULT_MODEL : m.id
+    const lane = info.get(id)
+    const cat = catalog.get(id)
+    if (!lane && !cat) return m
     return {
       ...m,
-      contextWindow: m.contextWindow ?? lane.contextWindow,
-      // LiteLLM is the single source of truth for lane capabilities,
-      // including the `vision` flag the attach button is gated on. Corrections
-      // belong in litellm/config.yaml's model_info, not here.
-      vision: lane.vision ?? m.vision,
-      tools: lane.tools ?? m.tools,
-      reasoning: lane.reasoning ?? m.reasoning,
-      webSearch: lane.webSearch ?? m.webSearch,
-      audio: lane.audio ?? m.audio,
-      inputCost: m.inputCost ?? lane.inputCost,
-      outputCost: m.outputCost ?? lane.outputCost,
+      contextWindow: m.contextWindow ?? cat?.contextWindow ?? lane?.contextWindow,
+      // The attach button is gated on `vision`, so this one has to be right.
+      vision: cat?.vision ?? lane?.vision ?? m.vision,
+      tools: cat?.tools ?? lane?.tools ?? m.tools,
+      reasoning: lane?.reasoning ?? m.reasoning,
+      webSearch: lane?.webSearch ?? m.webSearch,
+      audio: lane?.audio ?? m.audio,
+      inputCost: m.inputCost ?? lane?.inputCost,
+      outputCost: m.outputCost ?? lane?.outputCost,
       description:
         m.id === "hermes-agent" ? `${m.description} (${HERMES_DEFAULT_MODEL})` : m.description,
     }

@@ -12,7 +12,7 @@ const LANE_DESCRIPTIONS: Record<string, string> = {
   "gemini-3.5-flash-lite": "Free tier: cheap bulk work",
   "gemini-2.5-pro": "Free tier: few requests per day",
   "gpt-oss-120b": "Groq: fastest, small rate limit",
-  "mistral-small-latest": "Free tier: tight rate limits",
+  "mistral-small-2603": "Free tier: tight rate limits",
   "nemotron-3.5-lightning": "OpenRouter free pool",
 }
 
@@ -23,7 +23,7 @@ const litellmModels: ModelConfig[] = [
   "gemini-3.5-flash-lite",
   "gemini-2.5-pro",
   "gpt-oss-120b",
-  "mistral-small-latest",
+  "mistral-small-2603",
   "nemotron-3.5-lightning",
 ].map((id) => ({
   id,
